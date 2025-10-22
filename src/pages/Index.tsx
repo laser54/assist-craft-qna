@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
 import { useVectorSearch } from "@/hooks/useVectorSearch";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
+import { loadDemoData } from "@/lib/demoData";
 
 const Index = () => {
   const [query, setQuery] = useState("");
@@ -14,6 +15,16 @@ const Index = () => {
   const [showAllResults, setShowAllResults] = useState(false);
   const { search, isReady } = useVectorSearch();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const loaded = loadDemoData();
+    if (loaded) {
+      toast({
+        title: "Demo data loaded",
+        description: "Try searching: 'How do I reset my password?'",
+      });
+    }
+  }, [toast]);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -65,11 +76,11 @@ const Index = () => {
           </p>
         </div>
 
-        <Card className="border-primary/20 shadow-lg">
+        <Card className="border-primary/20 shadow-lg bg-gradient-to-br from-card to-primary/5">
           <CardContent className="pt-6">
             <div className="flex gap-2">
               <Input
-                placeholder="Enter customer query here..."
+                placeholder="Try: How do I reset my password?"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -90,6 +101,10 @@ const Index = () => {
                   </>
                 )}
               </Button>
+            </div>
+            <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+              <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
+              <p>Demo queries: "reset password", "system requirements", "contact support"</p>
             </div>
           </CardContent>
         </Card>

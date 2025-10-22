@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, Edit, Plus, Upload, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
+import { loadDemoData } from "@/lib/demoData";
 
 export interface QAPair {
   id: string;
@@ -22,6 +23,7 @@ const QAManagement = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    loadDemoData();
     const stored = localStorage.getItem("faq-qa-pairs");
     if (stored) {
       setQaPairs(JSON.parse(stored));

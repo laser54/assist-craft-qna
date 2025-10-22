@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Home, FileText, Settings } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 export const Navigation = () => {
@@ -42,6 +43,10 @@ export const Navigation = () => {
                 </Button>
               );
             })}
+            
+            <div className="ml-2 pl-2 border-l">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </div>
