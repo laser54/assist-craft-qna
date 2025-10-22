@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Edit, Plus, Upload } from "lucide-react";
+import { Trash2, Edit, Plus, Upload, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Navigation } from "@/components/Navigation";
 
 export interface QAPair {
   id: string;
@@ -126,18 +127,23 @@ const QAManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold">Q&A Management</h1>
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      
+      <div className="max-w-6xl mx-auto p-4 sm:p-8 space-y-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Q&A Management
+          </h1>
           <div className="flex gap-2">
-            <Button onClick={exportQAPairs} variant="outline">
-              Export JSON
+            <Button onClick={exportQAPairs} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Export
             </Button>
             <Button asChild variant="outline">
-              <label className="cursor-pointer">
-                <Upload className="w-4 h-4 mr-2" />
-                Import JSON
+              <label className="cursor-pointer flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Import
                 <input
                   type="file"
                   accept=".json"
@@ -149,9 +155,9 @@ const QAManagement = () => {
           </div>
         </div>
 
-        <Card>
+        <Card className="border-primary/20 shadow-lg">
           <CardHeader>
-            <CardTitle>Add New Q&A Pair</CardTitle>
+            <CardTitle className="text-primary">Add New Q&A Pair</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -161,6 +167,7 @@ const QAManagement = () => {
                 placeholder="Enter the question..."
                 value={newQuestion}
                 onChange={(e) => setNewQuestion(e.target.value)}
+                className="mt-1.5"
               />
             </div>
             <div>
@@ -171,9 +178,10 @@ const QAManagement = () => {
                 value={newAnswer}
                 onChange={(e) => setNewAnswer(e.target.value)}
                 rows={4}
+                className="mt-1.5"
               />
             </div>
-            <Button onClick={addQAPair}>
+            <Button onClick={addQAPair} className="w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Add Q&A Pair
             </Button>
@@ -181,9 +189,12 @@ const QAManagement = () => {
         </Card>
 
         <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">Existing Q&A Pairs ({qaPairs.length})</h2>
+          <h2 className="text-2xl font-semibold text-foreground">
+            Existing Q&A Pairs 
+            <span className="ml-2 text-primary">({qaPairs.length})</span>
+          </h2>
           {qaPairs.map((pair) => (
-            <Card key={pair.id}>
+            <Card key={pair.id} className="shadow-md hover:shadow-lg transition-shadow">
               <CardContent className="pt-6">
                 {editingId === pair.id ? (
                   <div className="space-y-4">

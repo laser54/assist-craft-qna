@@ -2,17 +2,16 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Settings, FileText, Loader2, ChevronDown, ChevronUp } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Search, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { useVectorSearch } from "@/hooks/useVectorSearch";
 import { useToast } from "@/hooks/use-toast";
+import { Navigation } from "@/components/Navigation";
 
 const Index = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
-  const navigate = useNavigate();
   const { search, isReady } = useVectorSearch();
   const { toast } = useToast();
 
@@ -54,40 +53,19 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b bg-card">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Smart FAQ</h1>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate("/qa-management")}>
-              <FileText className="w-4 h-4 mr-2" />
-              Q&A Management
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/settings")}>
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </Button>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
-      <div className="max-w-4xl mx-auto p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <h2 className="text-4xl font-bold">Support Operator Assistant</h2>
-          <p className="text-muted-foreground">
+      <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
+        <div className="text-center space-y-3 pt-8">
+          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Support Operator Assistant
+          </h1>
+          <p className="text-muted-foreground text-lg">
             Enter a customer query to find the most relevant answer
           </p>
         </div>
 
-        {!isReady && (
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Loading AI model...</span>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
+        <Card className="border-primary/20 shadow-lg">
           <CardContent className="pt-6">
             <div className="flex gap-2">
               <Input
@@ -95,13 +73,21 @@ const Index = () => {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                disabled={!isReady}
+                disabled={isSearching}
+                className="h-12 text-base"
               />
-              <Button onClick={handleSearch} disabled={!isReady || isSearching}>
+              <Button 
+                onClick={handleSearch} 
+                disabled={isSearching}
+                className="h-12 px-6"
+              >
                 {isSearching ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <Search className="w-4 h-4" />
+                  <>
+                    <Search className="w-5 h-5 mr-2" />
+                    Search
+                  </>
                 )}
               </Button>
             </div>
@@ -109,56 +95,56 @@ const Index = () => {
         </Card>
 
         {topResult && (
-          <Card className="border-primary">
+          <Card className="border-primary/50 shadow-xl bg-gradient-to-br from-card to-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Top Result</span>
-                <span className="text-sm font-normal text-muted-foreground">
+                <span className="text-primary">Top Result</span>
+                <span className="text-sm font-normal px-3 py-1 rounded-full bg-primary/10 text-primary">
                   {(topResult.score * 100).toFixed(1)}% match
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="font-semibold text-lg mb-2">Question:</p>
-                <p className="text-muted-foreground">{topResult.question}</p>
+              <div className="p-4 rounded-lg bg-muted/50">
+                <p className="font-semibold text-sm text-muted-foreground mb-2">Question:</p>
+                <p className="text-lg">{topResult.question}</p>
               </div>
-              <div>
-                <p className="font-semibold text-lg mb-2">Answer:</p>
-                <p className="whitespace-pre-wrap">{topResult.answer}</p>
+              <div className="p-4 rounded-lg bg-primary/5">
+                <p className="font-semibold text-sm text-primary mb-2">Answer:</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{topResult.answer}</p>
               </div>
             </CardContent>
           </Card>
         )}
 
         {otherResults.length > 0 && (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-lg">
+            <CardHeader className="pb-3">
               <Button
                 variant="ghost"
-                className="w-full flex justify-between items-center"
+                className="w-full flex justify-between items-center p-0 h-auto hover:bg-transparent"
                 onClick={() => setShowAllResults(!showAllResults)}
               >
-                <span>Other Similar Results ({otherResults.length})</span>
+                <span className="text-lg font-semibold">Other Similar Results ({otherResults.length})</span>
                 {showAllResults ? (
-                  <ChevronUp className="w-4 h-4" />
+                  <ChevronUp className="w-5 h-5" />
                 ) : (
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronDown className="w-5 h-5" />
                 )}
               </Button>
             </CardHeader>
             {showAllResults && (
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {otherResults.map((result, idx) => (
-                  <div key={result.id} className="border-t pt-4 first:border-t-0 first:pt-0">
+                  <div key={result.id} className="p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div className="flex justify-between items-start mb-2">
-                      <p className="font-semibold">#{idx + 2}</p>
-                      <span className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-primary">#{idx + 2}</span>
+                      <span className="text-sm px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                         {(result.score * 100).toFixed(1)}% match
                       </span>
                     </div>
-                    <p className="font-medium mb-1">{result.question}</p>
-                    <p className="text-sm text-muted-foreground">{result.answer}</p>
+                    <p className="font-medium mb-2">{result.question}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
                   </div>
                 ))}
               </CardContent>
