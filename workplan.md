@@ -130,7 +130,7 @@
 
 ## Implementation Phases
 1. Environment scaffolding (done): repo restructure (`frontend`, `server`), baseline backend Express app, verified `npm run build`/`npm run dev` + `/healthz` response. Dockerfiles/compose/Trafik/SQLite volume wiring pending.
-2. Backend MVP: auth, SQLite schema (UTF-8), CRUD, Pinecone embed/upsert/query, reranker integration.
+2. Backend MVP (in progress): auth + session cookie готово, SQLite схемы и сервис работы с settings/sessions есть, curl-тест логина + защищённых эндпоинтов проходит. Следующий шаг — добавить CRUD для `qa_pairs`, API маршруты и связи с Pinecone.
 3. Frontend integration: migrate to API, add auth guard, metrics banner reflecting Pinecone stats.
 4. CSV import streaming + per-row Pinecone embedding, UI summary.
 5. Metrics & Pinecone limit visualization.

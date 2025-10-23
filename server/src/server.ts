@@ -2,9 +2,11 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { env } from "./lib/env";
+import "./lib/db";
+import { authRouter } from "./routes/auth";
+import { authMiddleware } from "./middleware/authMiddleware";
+import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
 
@@ -17,7 +19,15 @@ app.get("/healthz", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime() });
 });
 
-const PORT = Number(process.env.PORT ?? 8080);
+app.use("/api/auth", authRouter);
+
+app.get("/api/metrics", authMiddleware, (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.use(errorHandler);
+
+const PORT = env.PORT;
 
 app.listen(PORT, () => {
   console.log(`API listening on http://localhost:${PORT}`);
