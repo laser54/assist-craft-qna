@@ -129,7 +129,7 @@
 - Traefik + HTTPS needs ACME storage volume and DNS config; document production steps.
 
 ## Implementation Phases
-1. Environment scaffolding: repo restructure (`frontend`, `server`), Dockerfiles, compose, Traefik config, SQLite volume wiring.
+1. Environment scaffolding (done): repo restructure (`frontend`, `server`), baseline backend Express app, verified `npm run build`/`npm run dev` + `/healthz` response. Dockerfiles/compose/Trafik/SQLite volume wiring pending.
 2. Backend MVP: auth, SQLite schema (UTF-8), CRUD, Pinecone embed/upsert/query, reranker integration.
 3. Frontend integration: migrate to API, add auth guard, metrics banner reflecting Pinecone stats.
 4. CSV import streaming + per-row Pinecone embedding, UI summary.
