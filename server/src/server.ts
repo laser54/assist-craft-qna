@@ -7,6 +7,10 @@ import "./lib/db";
 import { authRouter } from "./routes/auth";
 import { authMiddleware } from "./middleware/authMiddleware";
 import { errorHandler } from "./middleware/errorHandler";
+import { qaRouter } from "./routes/qa";
+import { searchRouter } from "./routes/search";
+import { qaService } from "./services/qaService";
+import { pineconeService } from "./services/pineconeService";
 
 const app = express();
 
@@ -21,9 +25,22 @@ app.get("/healthz", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 
-app.get("/api/metrics", authMiddleware, (_req, res) => {
-  res.json({ ok: true });
+app.get("/api/metrics", authMiddleware, async (_req, res, next) => {
+  try {
+    const totalQa = qaService.count();
+    let pineconeVectors: number | null = null;
+    if (pineconeService.isConfigured()) {
+      const stats = await pineconeService.describeIndexStats();
+      pineconeVectors = stats?.totalRecordCount ?? null;
+    }
+    res.json({ ok: true, totalQa, pineconeVectors });
+  } catch (error) {
+    next(error);
+  }
 });
+
+app.use("/api/qa", authMiddleware, qaRouter);
+app.use("/api/search", authMiddleware, searchRouter);
 
 app.use(errorHandler);
 

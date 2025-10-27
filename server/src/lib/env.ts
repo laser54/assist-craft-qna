@@ -13,10 +13,18 @@ const envSchema = z.object({
   COOKIE_NAME: z.string().default("auth_token"),
   COOKIE_DOMAIN: z.string().optional(),
   COOKIE_SECURE: z.string().optional(),
+  PINECONE_API_KEY: z.string().trim().min(1).optional(),
+  PINECONE_INDEX: z.string().trim().min(1).optional(),
+  PINECONE_HOST: z.string().trim().min(1).optional(),
+  PINECONE_EMBED_MODEL: z.string().trim().min(1).optional(),
+  PINECONE_RERANK_MODEL: z.string().trim().min(1).optional(),
+  CSV_BATCH_SIZE: z.coerce.number().int().positive().default(25),
+  DEFAULT_LOCALE: z.string().trim().min(2).default("ru-RU"),
 });
 
 export type Env = z.infer<typeof envSchema> & {
   cookieSecure: boolean;
+  pineconeConfigured: boolean;
 };
 
 export const env: Env = (() => {
@@ -24,9 +32,16 @@ export const env: Env = (() => {
   const cookieSecure = base.COOKIE_SECURE
     ? base.COOKIE_SECURE.toLowerCase() === "true"
     : base.NODE_ENV === "production";
+  const pineconeConfigured = Boolean(
+    base.PINECONE_API_KEY &&
+      base.PINECONE_INDEX &&
+      base.PINECONE_HOST &&
+      base.PINECONE_EMBED_MODEL
+  );
 
   return {
     ...base,
     cookieSecure,
+    pineconeConfigured,
   };
 })();

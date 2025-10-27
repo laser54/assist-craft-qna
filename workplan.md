@@ -1,5 +1,12 @@
 # Workplan
 
+## Status Update (2025-10-27)
+
+- **Backend**: реализованы `/api/qa`, `/api/search`, `/api/metrics`; `qaService` пишет в SQLite, синкает Pinecone и обновляет статистику. Авторизация через cookie остаётся обязательной для всех API.
+- **Frontend**: добавлены `/login`, `ProtectedRoute`, `useAuth`; главная страница теперь бьёт в `/api/search` и выводит Pinecone-метрики.
+- **Env**: пароль берётся из `PORTAL_PASSWORD`; при каждом старте сверяется и при расхождении ре-хешится, так что для доступа нужен актуальный env.
+- **Следующие шаги**: перевести `QAManagement`/`Settings` на REST (`/api/qa`, `/api/metrics`), реализовать CSV import + rerank UI, затем прицельно добить тесты.
+
 ## System Architecture
 - React application (`frontend`) stays in English, uses `react-query` and fetches everything through REST API; UI copy and docs remain English while allowing Russian user data.
 - Node.js/Express server (`backend`) containerized with TypeScript, orchestrates Pinecone for embeddings, vector storage, and reranking, and uses a lightweight SQLite store (file-based, UTF-8 safe) to keep canonical Q&A records and settings.

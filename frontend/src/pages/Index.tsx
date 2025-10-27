@@ -1,36 +1,43 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
-import { useVectorSearch } from "@/hooks/useVectorSearch";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
-import { loadDemoData } from "@/lib/demoData";
+import { useMutation } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+
+interface SearchMatch {
+  id: string;
+  score: number;
+  question: string;
+  answer: string;
+  language: string;
+}
 
 const Index = () => {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchMatch[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
-  const { search, isReady } = useVectorSearch();
+  const { metrics } = useAuth();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const loaded = loadDemoData();
-    if (loaded) {
-      toast({
-        title: "Demo data loaded",
-        description: "Try searching: 'How do I reset my password?'",
-      });
-    }
-  }, [toast]);
+  const searchMutation = useMutation({
+    mutationFn: async (payload: { query: string }) => {
+      const params = new URLSearchParams({ query: payload.query });
+      const response = await apiFetch<{ matches: SearchMatch[] }>(`/search?${params.toString()}`);
+      return response.matches ?? [];
+    },
+  });
 
   const handleSearch = async () => {
     if (!query.trim()) {
       toast({
-        title: "Error",
-        description: "Please enter a query",
+        title: "Ошибка",
+        description: "Введи текст запроса",
         variant: "destructive",
       });
       return;
@@ -38,20 +45,20 @@ const Index = () => {
 
     setIsSearching(true);
     try {
-      const searchResults = await search(query);
+      const searchResults = await searchMutation.mutateAsync({ query });
       setResults(searchResults);
       setShowAllResults(false);
-      
+
       if (searchResults.length === 0) {
         toast({
-          title: "No results",
-          description: "No similar questions found. Try rephrasing your query.",
+          title: "Пусто",
+          description: "Ничего похожего не нашли, попробуй иначе",
         });
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to search. Please try again.",
+        title: "Ошибка",
+        description: "Поиск не отработал. Попробуй снова чуть позже.",
         variant: "destructive",
       });
     } finally {
@@ -76,6 +83,27 @@ const Index = () => {
           </p>
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Card className="shadow-sm">
+            <CardContent className="py-4">
+              <p className="text-xs uppercase text-muted-foreground">Всего QA</p>
+              <p className="text-2xl font-semibold">{metrics?.totalQa ?? "—"}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="py-4">
+              <p className="text-xs uppercase text-muted-foreground">Vectors в Pinecone</p>
+              <p className="text-2xl font-semibold">{metrics?.pineconeVectors ?? "—"}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="py-4">
+              <p className="text-xs uppercase text-muted-foreground">Последний статус</p>
+              <p className="text-sm text-muted-foreground">API готов к запросам</p>
+            </CardContent>
+          </Card>
+        </div>
+
         <Card className="border-primary/20 shadow-lg bg-gradient-to-br from-card to-primary/5">
           <CardContent className="pt-6">
             <div className="flex gap-2">
@@ -87,8 +115,8 @@ const Index = () => {
                 disabled={isSearching}
                 className="h-12 text-base"
               />
-              <Button 
-                onClick={handleSearch} 
+              <Button
+                onClick={handleSearch}
                 disabled={isSearching}
                 className="h-12 px-6"
               >
@@ -104,7 +132,7 @@ const Index = () => {
             </div>
             <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
               <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
-              <p>Demo queries: "reset password", "system requirements", "contact support"</p>
+              <p>Попробуй конкретные вопросы клиента — Pinecone отдаст наиболее релевантные ответы.</p>
             </div>
           </CardContent>
         </Card>
