@@ -18,6 +18,7 @@ const envSchema = z.object({
   PINECONE_HOST: z.string().trim().min(1).optional(),
   PINECONE_EMBED_MODEL: z.string().trim().min(1).optional(),
   PINECONE_RERANK_MODEL: z.string().trim().min(1).optional(),
+  PINECONE_EMBED_INPUT_TYPE: z.string().trim().min(1).optional(),
   CSV_BATCH_SIZE: z.coerce.number().int().positive().default(25),
   DEFAULT_LOCALE: z.string().trim().min(2).default("ru-RU"),
 });

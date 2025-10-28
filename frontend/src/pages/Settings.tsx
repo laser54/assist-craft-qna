@@ -1,27 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Loader2, RefreshCcw } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 
@@ -37,36 +21,6 @@ interface SettingsResponse {
   ok: boolean;
   settings: BackendSettings;
 }
-
-const embeddingOptions = [
-  {
-    value: "mixedbread-ai/mxbai-embed-xsmall-v1",
-    label: "MixedBread XSmall (Fast)",
-  },
-  {
-    value: "Xenova/all-MiniLM-L6-v2",
-    label: "MiniLM L6 (Balanced)",
-  },
-  {
-    value: "text-embedding-3-large",
-    label: "text-embedding-3-large (OpenAI-compatible)",
-  },
-];
-
-const rerankOptions = [
-  {
-    value: "none",
-    label: "Disable rerank",
-  },
-  {
-    value: "cohere-rerank-v3.0",
-    label: "Cohere Rerank v3",
-  },
-  {
-    value: "pinecone-rerank-qa",
-    label: "Pinecone QA",
-  },
-];
 
 const fetchSettings = async (): Promise<SettingsResponse> => {
   return apiFetch<SettingsResponse>("/settings");
@@ -102,7 +56,7 @@ const SettingsPage = () => {
       queryClient.setQueryData(["settings"], response);
       toast({
         title: "Настройки сохранены",
-        description: "Бэкенд обновил конфигурацию.",
+        description: "Конфигурация обновлена.",
       });
     },
     onError: (err) => {
@@ -182,7 +136,7 @@ const SettingsPage = () => {
                       value={form.topResultsCount}
                       onChange={(e) => handleNumberChange("topResultsCount", e.target.value)}
                     />
-                    <p className="text-sm text-muted-foreground">How many Pinecone matches to fetch (1-50)</p>
+                    <p className="text-sm text-muted-foreground">Сколько результатов запрашивать из Pinecone (1-50)</p>
                   </div>
 
                   <div className="space-y-2">
@@ -196,58 +150,7 @@ const SettingsPage = () => {
                       value={form.similarityThreshold}
                       onChange={(e) => handleNumberChange("similarityThreshold", e.target.value)}
                     />
-                    <p className="text-sm text-muted-foreground">Minimum cosine similarity to surface a result</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="embed-model">Embedding Model</Label>
-                    <Select
-                      value={form.model}
-                      onValueChange={(value) =>
-                        setForm((prev) => (prev ? { ...prev, model: value } : prev))
-                      }
-                    >
-                      <SelectTrigger id="embed-model">
-                        <SelectValue placeholder="Select a model" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {embeddingOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">Must match your Pinecone index dimension</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="rerank-model">Rerank Model</Label>
-                    <Select
-                      value={form.rerankModel ?? "none"}
-                      onValueChange={(value) =>
-                        setForm((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                rerankModel: value === "none" ? null : value,
-                              }
-                            : prev,
-                        )
-                      }
-                    >
-                      <SelectTrigger id="rerank-model">
-                        <SelectValue placeholder="Select reranker" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rerankOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">Optional Pinecone Rerank model to improve ordering</p>
+                    <p className="text-sm text-muted-foreground">Минимальная косинусная схожесть для показа результата</p>
                   </div>
 
                   <div className="space-y-2">
@@ -260,7 +163,19 @@ const SettingsPage = () => {
                       value={form.csvBatchSize}
                       onChange={(e) => handleNumberChange("csvBatchSize", e.target.value)}
                     />
-                    <p className="text-sm text-muted-foreground">Rows to process per batch during CSV import</p>
+                    <p className="text-sm text-muted-foreground">Сколько строк обрабатываем за один проход импорта</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Embedding Model</Label>
+                    <Input value={form.model} readOnly className="bg-muted text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Берём из env / Pinecone, редактирование в UI отключено</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Rerank Model</Label>
+                    <Input value={form.rerankModel ?? "—"} readOnly className="bg-muted text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Если нужно поменять модель — обнови переменные окружения</p>
                   </div>
                 </div>
 
@@ -305,8 +220,8 @@ const SettingsPage = () => {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground leading-relaxed">
-              Smart FAQ System v1.0 — Backend stores settings in SQLite and syncs Pinecone embeddings and rerank
-              settings. Use this panel to keep your retrieval configuration consistent with deployed Pinecone models.
+              Pinecone конфиг подтягиваем из окружения сервера. Здесь можно управлять только тем, что хранится в SQLite
+              (лимиты поиска и размер CSV batch). Модельные параметры меняются через env или сам Pinecone dashboard.
             </p>
           </CardContent>
         </Card>

@@ -1,11 +1,11 @@
 # Workplan
 
-## Status Update (2025-10-27)
+## Status Update (2025-10-28)
 
-- **Backend**: реализованы `/api/qa`, `/api/search`, `/api/metrics`; `qaService` пишет в SQLite, синкает Pinecone и обновляет статистику. Авторизация через cookie остаётся обязательной для всех API.
-- **Frontend**: добавлены `/login`, `ProtectedRoute`, `useAuth`; главная страница теперь бьёт в `/api/search` и выводит Pinecone-метрики.
-- **Env**: пароль берётся из `PORTAL_PASSWORD`; при каждом старте сверяется и при расхождении ре-хешится, так что для доступа нужен актуальный env.
-- **Следующие шаги**: перевести `QAManagement`/`Settings` на REST (`/api/qa`, `/api/metrics`), реализовать CSV import + rerank UI, затем прицельно добить тесты.
+- **Backend**: `/api/qa`, `/api/search`, `/api/metrics`, `/api/settings` are live; SQLite persists QA + settings, Pinecone sync runs per mutation (namespace `qa`), embedding service passes explicit `inputType`, and optional rerank integrates Pinecone Rerank API.
+- **Frontend**: `/login`, `ProtectedRoute`, `useAuth` fully wired; `Index.tsx` consumes ranked search results and color-codes relevance; `QAManagement` is REST-driven with pagination/import/export; `Settings` loads/saves backend configuration (models shown read-only).
+- **Env**: `.env` now controls Pinecone embed + rerank models plus `PINECONE_EMBED_INPUT_TYPE`; portal password still driven by `PORTAL_PASSWORD` and rehashed on boot.
+- **Next steps**: finish CSV streaming import endpoint + UI, extend metrics banner (remaining quota/error states), add automated tests before Docker packaging.
 
 ## System Architecture
 - React application (`frontend`) stays in English, uses `react-query` and fetches everything through REST API; UI copy and docs remain English while allowing Russian user data.
@@ -23,7 +23,7 @@
 6. **Stats**: GET `/api/metrics` reads SQLite counts (total QA) and Pinecone `describe_index_stats` (vector count), approximates free-tier remainder if available.
 
 ## Backend
-- **Stack**: Node 20, Express, TypeScript, `zod` for DTOs, `better-sqlite3` or `drizzle-orm/sqlite`, Pinecone SDK (`@pinecone-database/pinecone`) plus Pinecone Inference client (`@pinecone-database/inference`) for embeddings and reranking, CSV parsing via `fast-csv`.
+- **Stack**: Node 20, Express, TypeScript, `zod` for DTOs, `better-sqlite3`, Pinecone SDK (`@pinecone-database/pinecone`) plus Pinecone Inference client (`@pinecone-database/inference`) for embeddings and reranking, CSV parsing via `fast-csv`.
 - **Structure**: `server/src` with `app.ts`, `routes`, `controllers`, `services` (`authService`, `qaService`, `pineconeService`, `embeddingService`, `rerankService`, `metricsService`), `lib/db.ts` (SQLite connection), middleware (`auth`, `errorHandler`), `schemas` for validation.
 - **Config** (`server/.env.example`):
   - `PORT=8080`
@@ -49,8 +49,8 @@
   - `GET /api/search` → query results (embed + vector search + rerank).
   - `GET /api/metrics` → { totalQa, pineconeVectors, pineconeLimit? }.
 - **Embedding & Rerank Strategy**:
-  - Implement `embeddingService` wrapping Pinecone Inference embed endpoint; ensure chosen model handles Russian queries/answers.
-  - Implement `rerankService` calling Pinecone Rerank API with query and candidate documents; integrate into search pipeline with configurable top-K before rerank (`RERANK_TOP_K`).
+  - `embeddingService` wraps Pinecone Inference, supports fake fallback when API key missing, and respects `PINECONE_EMBED_INPUT_TYPE`.
+  - `rerankService` calls Pinecone Rerank API with query and candidate documents; falls back to vector scores when rerank unavailable; search returns results sorted by rerank score.
   - Document embedding dimension requirements and rerank model capabilities under `docs/embeddings.md`.
 - **Pinecone**:
   - Ensure index exists on boot (create if missing with dimension matching chosen embed model output).
@@ -136,10 +136,10 @@
 - Traefik + HTTPS needs ACME storage volume and DNS config; document production steps.
 
 ## Implementation Phases
-1. Environment scaffolding (done): repo restructure (`frontend`, `server`), baseline backend Express app, verified `npm run build`/`npm run dev` + `/healthz` response. Dockerfiles/compose/Trafik/SQLite volume wiring pending.
-2. Backend MVP (in progress): auth + session cookie готово, SQLite схемы и сервис работы с settings/sessions есть, curl-тест логина + защищённых эндпоинтов проходит. Следующий шаг — добавить CRUD для `qa_pairs`, API маршруты и связи с Pinecone.
-3. Frontend integration: migrate to API, add auth guard, metrics banner reflecting Pinecone stats.
-4. CSV import streaming + per-row Pinecone embedding, UI summary.
-5. Metrics & Pinecone limit visualization.
-6. Automated tests & CI/CD pipelines.
-7. Final QA in Docker + Traefik, production deployment checklist.
+1. Environment scaffolding (done): repo restructure (`frontend`, `server`), baseline backend Express app, verified `npm run build`/`npm run dev` + `/healthz` response. Dockerfiles/compose/Traefik wiring pending.
+2. Backend MVP (done): auth + session cookie live, CRUD for `qa_pairs` hitting SQLite + Pinecone (namespace `qa`), `/api/search` embeds + reranks, `/api/settings` persists config.
+3. Frontend integration (done): app uses REST APIs via `react-query`, login guard works, search page shows ranked results with relevance chips, management/settings pages fully API-driven.
+4. CSV import streaming + per-row Pinecone embedding, UI summary (next).
+5. Metrics & Pinecone limit visualization (next).
+6. Automated tests & CI/CD pipelines (next).
+7. Final QA in Docker + Traefik, production deployment checklist (next).

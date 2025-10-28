@@ -41,7 +41,9 @@ export const embeddingService = {
       throw new Error("Pinecone client not initialised");
     }
 
-    const response = await inference.embed(env.PINECONE_EMBED_MODEL!, [text]);
+    const response = await inference.embed(env.PINECONE_EMBED_MODEL!, [text], {
+      inputType: env.PINECONE_EMBED_INPUT_TYPE ?? "passage",
+    });
 
     const first = response.data?.[0];
     let embedding: number[] | undefined;

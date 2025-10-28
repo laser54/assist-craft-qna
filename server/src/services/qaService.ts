@@ -149,6 +149,7 @@ export const qaService = {
           answer: qa.answer,
           language: qa.language,
         },
+        namespace: "qa",
       });
       db.prepare(
         `UPDATE qa_pairs

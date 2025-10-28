@@ -6,6 +6,7 @@ type UpsertParams = {
   id: string;
   values: number[];
   metadata?: Record<string, unknown>;
+  namespace?: string;
 };
 
 type QueryParams = {
@@ -19,26 +20,25 @@ const INDEX_NAMESPACE = "qa";
 export const pineconeService = {
   isConfigured: () => env.pineconeConfigured,
 
-  async upsertVector({ id, values, metadata }: UpsertParams): Promise<void> {
+  async upsertVector({ id, values, metadata, namespace }: UpsertParams): Promise<void> {
     if (!env.pineconeConfigured) return;
     const index = pineconeClient.getIndex();
     if (!index) return;
-    await index.upsert([
-      {
-        id,
-        values,
-        ...(metadata ? { metadata: metadata as RecordMetadata } : {}),
-      },
-    ]);
+    const scoped = namespace ? index.namespace(namespace) : index.namespace(INDEX_NAMESPACE);
+    await scoped.upsert([{
+      id,
+      values,
+      ...(metadata ? { metadata: metadata as RecordMetadata } : {}),
+    }]);
   },
 
   async deleteVector(id: string): Promise<void> {
     if (!env.pineconeConfigured) return;
     const index = pineconeClient.getIndex();
     if (!index) return;
-    await index.deleteMany({
+    const scoped = index.namespace(INDEX_NAMESPACE);
+    await scoped.deleteMany({
       ids: [id],
-      namespace: INDEX_NAMESPACE,
     });
   },
 

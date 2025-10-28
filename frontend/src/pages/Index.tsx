@@ -17,6 +17,13 @@ interface SearchMatch {
   language: string;
 }
 
+const scoreToColor = (score: number): string => {
+  if (score >= 0.8) return "bg-emerald-500/90";
+  if (score >= 0.6) return "bg-lime-400/80";
+  if (score >= 0.4) return "bg-amber-400/80";
+  return "bg-rose-500/80";
+};
+
 const Index = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchMatch[]>([]);
@@ -66,8 +73,9 @@ const Index = () => {
     }
   };
 
-  const topResult = results[0];
-  const otherResults = results.slice(1);
+  const sortedResults = [...results].sort((a, b) => b.score - a.score);
+  const topResult = sortedResults[0];
+  const otherResults = sortedResults.slice(1);
 
   return (
     <div className="min-h-screen bg-background">
@@ -142,7 +150,11 @@ const Index = () => {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span className="text-primary">Top Result</span>
-                <span className="text-sm font-normal px-3 py-1 rounded-full bg-primary/10 text-primary">
+                <span
+                  className={`text-sm font-normal px-3 py-1 rounded-full text-primary-foreground ${scoreToColor(
+                    topResult.score,
+                  )}`}
+                >
                   {(topResult.score * 100).toFixed(1)}% match
                 </span>
               </CardTitle>
@@ -182,7 +194,11 @@ const Index = () => {
                   <div key={result.id} className="p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-semibold text-primary">#{idx + 2}</span>
-                      <span className="text-sm px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      <span
+                        className={`text-sm px-2 py-0.5 rounded-full text-primary-foreground ${scoreToColor(
+                          result.score,
+                        )}`}
+                      >
                         {(result.score * 100).toFixed(1)}% match
                       </span>
                     </div>
