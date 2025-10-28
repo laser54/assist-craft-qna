@@ -20,7 +20,11 @@ const qaBodySchema = z.object({
 router.get("/", (req, res, next) => {
   try {
     const params = listQuerySchema.parse(req.query);
-    const result = qaService.list(params);
+    const result = qaService.list({
+      ...(params.page !== undefined ? { page: params.page } : {}),
+      ...(params.pageSize !== undefined ? { pageSize: params.pageSize } : {}),
+      ...(params.search !== undefined ? { search: params.search } : {}),
+    });
     res.json({
       page: result.page,
       pageSize: result.pageSize,
@@ -35,7 +39,12 @@ router.get("/", (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const body = qaBodySchema.parse(req.body ?? {});
-    const qa = qaService.create(body);
+    const createInput = {
+      question: body.question,
+      answer: body.answer,
+      ...(body.language !== undefined ? { language: body.language } : {}),
+    };
+    const qa = qaService.create(createInput);
     try {
       await qaService.syncVector(qa);
     } catch (error) {
@@ -56,7 +65,12 @@ router.put("/:id", async (req, res, next) => {
       throw new HttpError(404, "QA pair not found");
     }
     const body = qaBodySchema.parse(req.body ?? {});
-    const updated = qaService.update(id, body);
+    const updateInput = {
+      question: body.question,
+      answer: body.answer,
+      ...(body.language !== undefined ? { language: body.language } : {}),
+    };
+    const updated = qaService.update(id, updateInput);
     if (!updated) {
       throw new HttpError(404, "QA pair not found");
     }

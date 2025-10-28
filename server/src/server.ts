@@ -11,6 +11,7 @@ import { qaRouter } from "./routes/qa";
 import { searchRouter } from "./routes/search";
 import { qaService } from "./services/qaService";
 import { pineconeService } from "./services/pineconeService";
+import { settingsRouter } from "./routes/settings";
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.get("/api/metrics", authMiddleware, async (_req, res, next) => {
 
 app.use("/api/qa", authMiddleware, qaRouter);
 app.use("/api/search", authMiddleware, searchRouter);
+app.use("/api/settings", authMiddleware, settingsRouter);
 
 app.use(errorHandler);
 
