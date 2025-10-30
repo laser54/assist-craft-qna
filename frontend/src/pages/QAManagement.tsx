@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -23,7 +24,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Plus, Upload, Download, Edit, Trash2, RefreshCw, Search } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Upload,
+  Download,
+  Edit,
+  Trash2,
+  Trash,
+  RefreshCw,
+  Search,
+  Database,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -66,6 +81,46 @@ const fetchQaList = async (page: number, search: string): Promise<QaListResponse
 };
 
 const normaliseLanguage = (value: string) => value.trim() || "ru";
+
+const getVectorStatus = (status: string | null | undefined) => {
+  switch (status) {
+    case "ready":
+      return {
+        label: "Synced to Pinecone",
+        description: "Vector stored and ready for search",
+        variant: "default" as const,
+        Icon: CheckCircle2,
+      };
+    case "pending":
+      return {
+        label: "Sync in progress",
+        description: "Embedding queued for Pinecone",
+        variant: "secondary" as const,
+        Icon: Clock,
+      };
+    case "failed":
+      return {
+        label: "Sync failed",
+        description: "Inspect logs and retry the embedding job",
+        variant: "destructive" as const,
+        Icon: AlertTriangle,
+      };
+    case "skipped":
+      return {
+        label: "Skipped",
+        description: "Vectorisation skipped (model returned no embedding)",
+        variant: "outline" as const,
+        Icon: AlertTriangle,
+      };
+    default:
+      return {
+        label: "Unknown",
+        description: "Sync status was not reported",
+        variant: "outline" as const,
+        Icon: Database,
+      };
+  }
+};
 
 const QAManagement = () => {
   const [page, setPage] = useState(1);
@@ -119,7 +174,7 @@ const QAManagement = () => {
   const handleMutationError = (err: unknown, fallback: string) => {
     const message = err instanceof ApiError ? err.message : fallback;
     toast({
-      title: "Ошибка",
+      title: "Request failed",
       description: message,
       variant: "destructive",
     });
@@ -138,11 +193,11 @@ const QAManagement = () => {
       invalidateQa();
       await refresh().catch(() => undefined);
       toast({
-        title: "Готово",
-        description: "Новая пара зафиксирована",
+        title: "Q&A saved",
+        description: "Stored and queued for Pinecone vector sync.",
       });
     },
-    onError: (err) => handleMutationError(err, "Не удалось добавить Q&A"),
+    onError: (err) => handleMutationError(err, "Could not add the Q&A pair"),
   });
 
   const updateMutation = useMutation({
@@ -160,11 +215,11 @@ const QAManagement = () => {
       invalidateQa();
       await refresh().catch(() => undefined);
       toast({
-        title: "Обновлено",
-        description: "Пара сохранена",
+        title: "Q&A updated",
+        description: "Changes saved and vector sync restarted.",
       });
     },
-    onError: (err) => handleMutationError(err, "Не удалось обновить запись"),
+    onError: (err) => handleMutationError(err, "Could not update the record"),
   });
 
   const deleteMutation = useMutation({
@@ -177,21 +232,46 @@ const QAManagement = () => {
       invalidateQa();
       await refresh().catch(() => undefined);
       toast({
-        title: "Удалено",
-        description: "Пара удалена",
+        title: "Q&A deleted",
+        description: "Removed from SQLite and Pinecone.",
       });
     },
-    onError: (err) => handleMutationError(err, "Удалить не получилось"),
+    onError: (err) => handleMutationError(err, "Unable to delete the record"),
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<{ deleted: number; vectorFailures: string[] }>("/qa", {
+        method: "DELETE",
+      }),
+    onSuccess: async (result) => {
+      invalidateQa();
+      await refresh().catch(() => undefined);
+      const hasVectorFailures = Array.isArray(result.vectorFailures) && result.vectorFailures.length > 0;
+      toast({
+        title: "Knowledge base cleared",
+        description: hasVectorFailures
+          ? `Deleted ${result.deleted} pairs. Some vectors need manual cleanup in Pinecone.`
+          : `Deleted ${result.deleted} pairs from SQLite and Pinecone.`,
+        variant: hasVectorFailures ? "destructive" : "default",
+      });
+    },
+    onError: (err) => handleMutationError(err, "Unable to delete all records"),
   });
 
   const isProcessing =
-    createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || isImporting || isExporting;
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending ||
+    isImporting ||
+    isExporting ||
+    deleteAllMutation.isPending;
 
   const handleCreate = () => {
     if (!newQuestion.trim() || !newAnswer.trim()) {
       toast({
-        title: "Нужно заполнить",
-        description: "Введи вопрос и ответ",
+        title: "Missing fields",
+        description: "Provide both question and answer before saving.",
         variant: "destructive",
       });
       return;
@@ -221,8 +301,8 @@ const QAManagement = () => {
     if (!editingId) return;
     if (!editQuestion.trim() || !editAnswer.trim()) {
       toast({
-        title: "Нужно заполнить",
-        description: "Вопрос и ответ не могут быть пустыми",
+        title: "Missing fields",
+        description: "Question and answer cannot be empty.",
         variant: "destructive",
       });
       return;
@@ -236,9 +316,26 @@ const QAManagement = () => {
   };
 
   const handleDelete = (id: string) => {
-    const confirmed = window.confirm("Точно удалить эту пару?");
+    const confirmed = window.confirm("Delete this Q&A pair from Pinecone and SQLite?");
     if (!confirmed) return;
     deleteMutation.mutate(id);
+  };
+
+  const handleDeleteAll = () => {
+    const total = data?.total ?? 0;
+    if (total === 0) {
+      toast({
+        title: "Nothing to delete",
+        description: "The knowledge base is already empty.",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete all ${total} Q&A pairs from SQLite and Pinecone? This action cannot be undone.`,
+    );
+    if (!confirmed) return;
+    deleteAllMutation.mutate();
   };
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -263,7 +360,7 @@ const QAManagement = () => {
       const text = await file.text();
       const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) {
-        throw new Error("Ожидается массив объектов");
+        throw new Error("Expected an array of objects");
       }
 
       let imported = 0;
@@ -272,7 +369,7 @@ const QAManagement = () => {
       for (let index = 0; index < parsed.length; index += 1) {
         const entry = parsed[index] as Partial<QaItem>;
         if (typeof entry.question !== "string" || typeof entry.answer !== "string") {
-          failures.push({ index, error: "Некорректный формат" });
+          failures.push({ index, error: "Invalid shape" });
           continue;
         }
         try {
@@ -286,7 +383,7 @@ const QAManagement = () => {
           });
           imported += 1;
         } catch (err) {
-          const message = err instanceof ApiError ? err.message : "Ошибка сервера";
+          const message = err instanceof ApiError ? err.message : "Server error";
           failures.push({ index, error: message });
         }
       }
@@ -295,14 +392,14 @@ const QAManagement = () => {
       await refresh().catch(() => undefined);
 
       toast({
-        title: "Импорт завершён",
-        description: `Успешно: ${imported}. Ошибки: ${failures.length}`,
+        title: "Import complete",
+        description: `Success: ${imported}. Errors: ${failures.length}`,
         variant: failures.length > 0 ? "destructive" : "default",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Не удалось прочитать файл";
+      const message = error instanceof Error ? error.message : "Failed to parse the file";
       toast({
-        title: "Импорт сорвался",
+        title: "Import failed",
         description: message,
         variant: "destructive",
       });
@@ -335,13 +432,13 @@ const QAManagement = () => {
       URL.revokeObjectURL(url);
 
       toast({
-        title: "Экспорт готов",
-        description: `Выгружено ${items.length} записей`,
+        title: "Export ready",
+        description: `Exported ${items.length} items`,
       });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Экспорт не удался";
+      const message = error instanceof ApiError ? error.message : "Export failed";
       toast({
-        title: "Ошибка",
+        title: "Request failed",
         description: message,
         variant: "destructive",
       });
@@ -364,7 +461,7 @@ const QAManagement = () => {
               Q&A Management
             </h1>
             <p className="text-muted-foreground text-sm">
-              Управляй вопросами и ответами, данные хранятся в SQLite и синкаются с Pinecone.
+              Curate the knowledge base. Entries stay in SQLite and auto-sync to the Pinecone vector index.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -382,6 +479,15 @@ const QAManagement = () => {
             <Button variant="outline" onClick={() => invalidateQa()} className="gap-2" disabled={isProcessing}>
               <RefreshCw className="w-4 h-4" />
               Refresh
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAll}
+              className="gap-2"
+              disabled={isProcessing || (data?.total ?? 0) === 0}
+            >
+              {deleteAllMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash className="w-4 h-4" />}
+              Delete all
             </Button>
           </div>
         </div>
@@ -474,7 +580,7 @@ const QAManagement = () => {
                     <TableHead className="min-w-[220px]">Question</TableHead>
                     <TableHead className="min-w-[220px]">Answer</TableHead>
                     <TableHead className="w-[90px]">Language</TableHead>
-                    <TableHead className="w-[120px]">Embedding</TableHead>
+                    <TableHead className="w-[140px]">Vector Sync</TableHead>
                     <TableHead className="w-[180px]">Updated</TableHead>
                     <TableHead className="w-[140px] text-right">Actions</TableHead>
                   </TableRow>
@@ -490,7 +596,7 @@ const QAManagement = () => {
                   ) : appliedItems.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Ничего не найдено. Добавь пару или измени фильтры.
+                        No entries yet. Create a pair or adjust the filters.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -530,12 +636,28 @@ const QAManagement = () => {
                             )}
                           </TableCell>
                           <TableCell className="align-top">
-                            <Badge
-                              variant={item.embedding_status === "ready" ? "default" : "outline"}
-                              className="capitalize"
-                            >
-                              {item.embedding_status ?? "unknown"}
-                            </Badge>
+                            {(() => {
+                              const status = getVectorStatus(item.embedding_status);
+                              const StatusIcon = status.Icon;
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant={status.variant} className="gap-1.5 cursor-help">
+                                      <StatusIcon className="w-3.5 h-3.5" />
+                                      {status.label}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <div className="max-w-xs space-y-1 text-sm">
+                                      <p>{status.description}</p>
+                                      {item.pinecone_id ? (
+                                        <p className="text-muted-foreground">ID: {item.pinecone_id}</p>
+                                      ) : null}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="align-top text-sm text-muted-foreground">
                             {new Date(item.updated_at).toLocaleString()}

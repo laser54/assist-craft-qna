@@ -5,6 +5,7 @@ import { qaService } from "../services/qaService";
 import { pineconeService } from "../services/pineconeService";
 import { embeddingService } from "../services/embeddingService";
 import { rerankService } from "../services/rerankService";
+import { env } from "../lib/env";
 
 const router = Router();
 
@@ -47,16 +48,50 @@ router.get("/", async (req, res, next) => {
       })
       .filter((candidate): candidate is { id: string; baseScore: number; text: string; qa: typeof qaPairs[number] } => Boolean(candidate));
 
-    let reranked: { id: string; score: number }[];
-    try {
-      reranked = await rerankService.rerank(
-        query,
-        candidates.map((candidate) => ({ id: candidate.id, text: candidate.text })),
+    const vectorScores = candidates.map((candidate) => ({ id: candidate.id, score: candidate.baseScore }));
+
+    const pipeline = {
+      vector: {
+        index: env.PINECONE_INDEX ?? null,
+        namespace: "qa",
         topK,
-      );
-    } catch (error) {
-      console.warn("Rerank failed, falling back to Pinecone scores", error);
-      reranked = candidates.map((candidate) => ({ id: candidate.id, score: candidate.baseScore }));
+      },
+      rerank: {
+        model: null as string | null,
+        applied: false,
+        fallbackReason: rerankService.isConfigured() ? null : "Rerank model is not configured",
+        attemptedModels: rerankService.isConfigured() ? rerankService.candidateModels() : [],
+      },
+    };
+
+    let reranked: { id: string; score: number }[];
+    if (!rerankService.isConfigured()) {
+      reranked = vectorScores;
+    } else {
+      try {
+        const rerankOutcome = await rerankService.rerank(
+          query,
+          candidates.map((candidate) => ({ id: candidate.id, text: candidate.text })),
+          topK,
+        );
+        pipeline.rerank.model = rerankOutcome.model;
+        pipeline.rerank.attemptedModels = rerankOutcome.attemptedModels;
+        if (rerankOutcome.results.length > 0) {
+          reranked = rerankOutcome.results;
+          pipeline.rerank.applied = true;
+          pipeline.rerank.fallbackReason = rerankOutcome.warning;
+        } else {
+          reranked = vectorScores;
+          pipeline.rerank.applied = false;
+          pipeline.rerank.fallbackReason = rerankOutcome.warning ?? "Rerank returned no results";
+        }
+      } catch (error) {
+        console.warn("Rerank failed, falling back to Pinecone scores", error);
+        reranked = vectorScores;
+        pipeline.rerank.applied = false;
+        pipeline.rerank.fallbackReason = error instanceof Error ? error.message : "Unknown rerank failure";
+        pipeline.rerank.attemptedModels = rerankService.candidateModels();
+      }
     }
 
     const rerankedMap = new Map(reranked.map((item) => [item.id, item.score]));
@@ -81,6 +116,7 @@ router.get("/", async (req, res, next) => {
       query,
       topK,
       matches: results,
+      pipeline,
     });
   } catch (error) {
     next(error);

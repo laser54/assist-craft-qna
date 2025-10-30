@@ -46,11 +46,20 @@ export const useAuth = (): UseAuthResult => {
   });
 
   const loginMutation = useMutation({
-    mutationFn: ({ password }: { password: string }) =>
-      apiFetch<LoginResponse>("/auth/login", {
+    mutationFn: async ({ password }: { password: string }) => {
+      console.log("=== DEBUG FRONT LOGIN ===");
+      console.log("API base:", import.meta.env.VITE_API_BASE ?? "/api");
+      console.log("Password length:", password.length);
+
+      const result = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ password }),
-      }),
+      });
+
+      console.log("Response:", result);
+      console.log("============================");
+      return result;
+    },
     onSuccess: () => {
       void refetch();
     },

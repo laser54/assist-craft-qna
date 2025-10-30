@@ -1,106 +1,75 @@
-import { randomUUID } from "node:crypto";
-import bcrypt from "bcrypt";
-import { db } from "../lib/db";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../lib/env";
 
-const SALT_ROUNDS = 12;
-const DEFAULT_PASSWORD_VERSION = 1;
+const SESSION_VERSION = "v1";
 
-const hashPassword = (password: string) => bcrypt.hashSync(password, SALT_ROUNDS);
-const verifyPassword = (password: string, hash: string) => bcrypt.compareSync(password, hash);
-
-const SETTINGS_KEY = "portal_password_hash";
-const PASSWORD_VERSION_KEY = "portal_password_version";
-
-const getSetting = (key: string): string | null => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
-  return row?.value ?? null;
+const sign = (payload: string): string => {
+  return createHmac("sha256", env.SESSION_SECRET)
+    .update(`${SESSION_VERSION}:${env.PORTAL_PASSWORD}:${payload}`)
+    .digest("hex");
 };
 
-const setSetting = (key: string, value: string) => {
-  db.prepare(
-    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP`
-  ).run(key, value);
-};
-
-const ensurePasswordHash = () => {
-  const existingHash = getSetting(SETTINGS_KEY);
-  const envPassword = env.PORTAL_PASSWORD;
-  const versionRaw = getSetting(PASSWORD_VERSION_KEY);
-  const currentVersion = versionRaw ? Number(versionRaw) : 0;
-
-  if (!existingHash || !verifyPassword(envPassword, existingHash)) {
-    const newHash = hashPassword(envPassword);
-    setSetting(SETTINGS_KEY, newHash);
-    setSetting(PASSWORD_VERSION_KEY, String(currentVersion + 1));
-    return;
+const safeCompare = (a: string, b: string): boolean => {
+  if (!a || !b) return false;
+  const aBuffer = Buffer.from(a);
+  const bBuffer = Buffer.from(b);
+  if (aBuffer.length !== bBuffer.length) {
+    return false;
   }
-
-  if (!versionRaw) {
-    setSetting(PASSWORD_VERSION_KEY, String(DEFAULT_PASSWORD_VERSION));
-  }
+  return timingSafeEqual(aBuffer, bBuffer);
 };
 
-ensurePasswordHash();
+const buildToken = (expiresAt: Date): string => {
+  const millis = expiresAt.getTime().toString(10);
+  const signature = sign(millis);
+  return `${SESSION_VERSION}.${millis}.${signature}`;
+};
 
-interface SessionRecord {
-  id: string;
-  password_version: number;
-  expires_at: string;
-}
-
-const SESSION_SELECT = "SELECT id, password_version, expires_at FROM sessions WHERE id = ?";
+const parseToken = (token: string): { expiresAt: Date; signature: string } | null => {
+  const parts = token.split(".") as [string, string, string] | string[];
+  if (parts.length !== 3) {
+    return null;
+  }
+  const [version, millis, signature] = parts as [string, string, string];
+  if (version !== SESSION_VERSION) {
+    return null;
+  }
+  const timestamp = Number.parseInt(millis, 10);
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+  const expiresAt = new Date(timestamp);
+  if (Number.isNaN(expiresAt.getTime())) {
+    return null;
+  }
+  return { expiresAt, signature };
+};
 
 export const sessionService = {
   createSession(): { token: string; expiresAt: Date } {
-    const token = randomUUID();
     const expiresAt = new Date(Date.now() + env.SESSION_TTL_SECONDS * 1000);
-    const passwordVersion = Number(getSetting(PASSWORD_VERSION_KEY) ?? DEFAULT_PASSWORD_VERSION);
-
-    db.prepare(
-      `INSERT INTO sessions (id, password_version, created_at, expires_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP, ?)`
-    ).run(token, passwordVersion, expiresAt.toISOString());
-
+    const token = buildToken(expiresAt);
     return { token, expiresAt };
   },
 
-  validateSession(token: string | undefined | null): SessionRecord | null {
+  validateSession(token: string | undefined | null): { expiresAt: Date } | null {
     if (!token) return null;
-    const row = db.prepare(SESSION_SELECT).get(token) as SessionRecord | undefined;
-    if (!row) return null;
-
-    const expiresAt = new Date(row.expires_at);
-    if (expiresAt.getTime() < Date.now()) {
-      db.prepare("DELETE FROM sessions WHERE id = ?").run(token);
+    const parsed = parseToken(token);
+    if (!parsed) return null;
+    if (parsed.expiresAt.getTime() < Date.now()) {
       return null;
     }
-
-    const passwordVersion = Number(getSetting(PASSWORD_VERSION_KEY) ?? DEFAULT_PASSWORD_VERSION);
-    if (row.password_version !== passwordVersion) {
-      db.prepare("DELETE FROM sessions WHERE id = ?").run(token);
+    const expected = sign(parsed.expiresAt.getTime().toString(10));
+    if (!safeCompare(parsed.signature, expected)) {
       return null;
     }
-
-    return row;
-  },
-
-  deleteSession(token: string) {
-    db.prepare("DELETE FROM sessions WHERE id = ?").run(token);
-  },
-
-  rotatePassword(newPassword: string) {
-    const newHash = hashPassword(newPassword);
-    setSetting(SETTINGS_KEY, newHash);
-    const newVersion = Number(getSetting(PASSWORD_VERSION_KEY) ?? DEFAULT_PASSWORD_VERSION) + 1;
-    setSetting(PASSWORD_VERSION_KEY, String(newVersion));
-    db.prepare("DELETE FROM sessions").run();
+    return { expiresAt: parsed.expiresAt };
   },
 
   verifyPortalPassword(candidate: string): boolean {
-    const hash = getSetting(SETTINGS_KEY);
-    if (!hash) return false;
-    return verifyPassword(candidate, hash);
+    if (typeof candidate !== "string") {
+      return false;
+    }
+    return safeCompare(candidate, env.PORTAL_PASSWORD);
   },
 };

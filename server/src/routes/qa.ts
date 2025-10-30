@@ -100,6 +100,15 @@ router.delete("/:id", async (req, res, next) => {
   }
 });
 
+router.delete("/", async (req, res, next) => {
+  try {
+    const result = await qaService.deleteAll();
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export const qaRouter = router;
 
 

@@ -17,6 +17,13 @@ type QueryParams = {
 
 const INDEX_NAMESPACE = "qa";
 
+const isNotFoundError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") return false;
+  const name = (error as any)?.name;
+  const status = (error as any)?.status ?? (error as any)?.httpStatus;
+  return name === "PineconeNotFoundError" || status === 404;
+};
+
 export const pineconeService = {
   isConfigured: () => env.pineconeConfigured,
 
@@ -37,9 +44,34 @@ export const pineconeService = {
     const index = pineconeClient.getIndex();
     if (!index) return;
     const scoped = index.namespace(INDEX_NAMESPACE);
-    await scoped.deleteMany({
-      ids: [id],
-    });
+    try {
+      await scoped.deleteMany({
+        ids: [id],
+      });
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
+  },
+
+  async deleteVectors(ids: string[]): Promise<void> {
+    if (!env.pineconeConfigured) return;
+    if (ids.length === 0) return;
+    const index = pineconeClient.getIndex();
+    if (!index) return;
+    const scoped = index.namespace(INDEX_NAMESPACE);
+    try {
+      await scoped.deleteMany({
+        ids,
+      });
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
   },
 
   async query({ vector, topK, namespace }: QueryParams): Promise<ScoredPineconeRecord[]> {

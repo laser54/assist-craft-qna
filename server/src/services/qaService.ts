@@ -42,6 +42,7 @@ const mapRow = (row: any): QAPair => ({
 
 const selectByIdStmt = db.prepare("SELECT * FROM qa_pairs WHERE id = ?");
 const countStmt = db.prepare("SELECT COUNT(*) as count FROM qa_pairs");
+const listIdsStmt = db.prepare("SELECT id FROM qa_pairs");
 
 const buildSearchClause = (search?: string) => {
   if (!search?.trim()) {
@@ -168,7 +169,32 @@ export const qaService = {
 
   async removeVector(id: string): Promise<void> {
     if (!pineconeService.isConfigured()) return;
-    await pineconeService.deleteVector(id);
+    try {
+      await pineconeService.deleteVector(id);
+    } catch (error) {
+      console.warn("Failed to remove Pinecone vector", id, error);
+    }
+  },
+
+  async deleteAll(): Promise<{ deleted: number; vectorFailures: string[] }> {
+    const rows = listIdsStmt.all() as { id: string }[];
+    const ids = rows.map((row) => row.id);
+    const vectorFailures: string[] = [];
+
+    if (ids.length > 0 && pineconeService.isConfigured()) {
+      try {
+        await pineconeService.deleteVectors(ids);
+      } catch (error) {
+        console.error("Failed to delete Pinecone vectors in bulk", error);
+        vectorFailures.push(...ids);
+      }
+    }
+
+    const info = db.prepare("DELETE FROM qa_pairs").run();
+    return {
+      deleted: typeof info.changes === "number" ? info.changes : ids.length,
+      vectorFailures,
+    };
   },
 };
 

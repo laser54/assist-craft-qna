@@ -26,6 +26,11 @@ app.get("/healthz", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 
+console.log('=== DEBUG SERVER START ===');
+console.log('Listening on PORT:', env.PORT);
+console.log('Auth router mounted at /api/auth');
+console.log('===================');
+
 app.get("/api/metrics", authMiddleware, async (_req, res, next) => {
   try {
     const totalQa = qaService.count();

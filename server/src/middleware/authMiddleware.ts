@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { sessionService } from "../services/sessionService";
 import { env } from "../lib/env";
 
@@ -8,6 +8,6 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   if (!session) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  res.locals.session = session;
-  return next();
+  (req as any).user = { sessionExpiresAt: session.expiresAt.toISOString() };
+  next();
 };

@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -17,6 +19,20 @@ interface SearchMatch {
   language: string;
 }
 
+interface SearchPipelineMeta {
+  vector: {
+    index: string | null;
+    namespace: string;
+    topK: number;
+  };
+  rerank: {
+    model: string | null;
+    applied: boolean;
+    fallbackReason: string | null;
+    attemptedModels: string[];
+  };
+}
+
 const scoreToColor = (score: number): string => {
   if (score >= 0.8) return "bg-emerald-500/90";
   if (score >= 0.6) return "bg-lime-400/80";
@@ -29,13 +45,30 @@ const Index = () => {
   const [results, setResults] = useState<SearchMatch[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
+  const [pipelineMeta, setPipelineMeta] = useState<SearchPipelineMeta | null>(null);
   const { metrics } = useAuth();
   const { toast } = useToast();
 
   const searchMutation = useMutation({
     mutationFn: async (payload: { query: string }) => {
       const params = new URLSearchParams({ query: payload.query });
-      const response = await apiFetch<{ matches: SearchMatch[] }>(`/search?${params.toString()}`);
+      const response = await apiFetch<{ matches: SearchMatch[]; pipeline?: SearchPipelineMeta }>(
+        `/search?${params.toString()}`,
+      );
+      const meta = response.pipeline;
+      if (meta) {
+        setPipelineMeta({
+          vector: meta.vector,
+          rerank: {
+            model: meta.rerank.model,
+            applied: meta.rerank.applied,
+            fallbackReason: meta.rerank.fallbackReason ?? null,
+            attemptedModels: Array.isArray(meta.rerank.attemptedModels) ? meta.rerank.attemptedModels : [],
+          },
+        });
+      } else {
+        setPipelineMeta(null);
+      }
       return response.matches ?? [];
     },
   });
@@ -43,13 +76,14 @@ const Index = () => {
   const handleSearch = async () => {
     if (!query.trim()) {
       toast({
-        title: "Ошибка",
-        description: "Введи текст запроса",
+        title: "Missing query",
+        description: "Type a question before launching the search.",
         variant: "destructive",
       });
       return;
     }
 
+    setPipelineMeta(null);
     setIsSearching(true);
     try {
       const searchResults = await searchMutation.mutateAsync({ query });
@@ -58,14 +92,14 @@ const Index = () => {
 
       if (searchResults.length === 0) {
         toast({
-          title: "Пусто",
-          description: "Ничего похожего не нашли, попробуй иначе",
+          title: "No matches",
+          description: "Nothing relevant surfaced. Refine the question and try again.",
         });
       }
     } catch (error) {
       toast({
-        title: "Ошибка",
-        description: "Поиск не отработал. Попробуй снова чуть позже.",
+        title: "Search failed",
+        description: "Something went wrong while querying Pinecone. Retry in a moment.",
         variant: "destructive",
       });
     } finally {
@@ -94,20 +128,26 @@ const Index = () => {
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="shadow-sm">
             <CardContent className="py-4">
-              <p className="text-xs uppercase text-muted-foreground">Всего QA</p>
+              <p className="text-xs uppercase text-muted-foreground">Total Q&A</p>
               <p className="text-2xl font-semibold">{metrics?.totalQa ?? "—"}</p>
             </CardContent>
           </Card>
           <Card className="shadow-sm">
             <CardContent className="py-4">
-              <p className="text-xs uppercase text-muted-foreground">Vectors в Pinecone</p>
+              <p className="text-xs uppercase text-muted-foreground">Vectors in Pinecone</p>
               <p className="text-2xl font-semibold">{metrics?.pineconeVectors ?? "—"}</p>
             </CardContent>
           </Card>
           <Card className="shadow-sm">
             <CardContent className="py-4">
-              <p className="text-xs uppercase text-muted-foreground">Последний статус</p>
-              <p className="text-sm text-muted-foreground">API готов к запросам</p>
+              <p className="text-xs uppercase text-muted-foreground">AI Pipeline</p>
+              <p className="text-sm text-muted-foreground">
+                {pipelineMeta
+                  ? pipelineMeta.rerank.applied
+                    ? `Reranked via ${pipelineMeta.rerank.model ?? "Pinecone Rerank"}`
+                    : pipelineMeta.rerank.fallbackReason ?? "Vector order (fallback)"
+                  : "Vector search ready; reranker will trigger automatically"}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -140,16 +180,81 @@ const Index = () => {
             </div>
             <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
               <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
-              <p>Попробуй конкретные вопросы клиента — Pinecone отдаст наиболее релевантные ответы.</p>
+              <p>Ask the exact customer question — Pinecone’s reranker will surface the sharpest answer.</p>
             </div>
           </CardContent>
         </Card>
+
+        {pipelineMeta && (
+          <TooltipProvider>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="secondary" className="gap-2 whitespace-nowrap">
+                <Database className="w-3.5 h-3.5" />
+                {pipelineMeta.vector.index ?? "Pinecone Index"} · ns:{" "}
+                {pipelineMeta.vector.namespace}
+              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant={pipelineMeta.rerank.applied ? "default" : "outline"}
+                    className="gap-2 whitespace-nowrap cursor-help"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {pipelineMeta.rerank.applied
+                      ? `Reranked via ${pipelineMeta.rerank.model ?? "Pinecone Rerank"}`
+                      : "Vector order (fallback)"}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1 text-sm">
+                    <p>
+                      Models tried: {pipelineMeta.rerank.attemptedModels.length > 0
+                        ? pipelineMeta.rerank.attemptedModels.join(", ")
+                        : "n/a"}
+                    </p>
+                    {pipelineMeta.rerank.applied ? null : (
+                      <p className="text-muted-foreground">Rerank fell back to vector order.</p>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+              {pipelineMeta.rerank.fallbackReason && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-2 cursor-help">
+                      <Info className="w-3.5 h-3.5" />
+                      Details
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1 text-sm max-w-xs">
+                      <p>{pipelineMeta.rerank.fallbackReason}</p>
+                      {pipelineMeta.rerank.attemptedModels.length > 0 ? (
+                        <p className="text-muted-foreground">
+                          Tried: {pipelineMeta.rerank.attemptedModels.join(", ")}
+                        </p>
+                      ) : null}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </TooltipProvider>
+        )}
 
         {topResult && (
           <Card className="border-primary/50 shadow-xl bg-gradient-to-br from-card to-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="text-primary">Top Result</span>
+                <span className="flex items-center gap-3 text-primary">
+                  Top Result
+                  {pipelineMeta?.rerank?.applied ? (
+                    <Badge variant="secondary" className="gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Reranked
+                    </Badge>
+                  ) : null}
+                </span>
                 <span
                   className={`text-sm font-normal px-3 py-1 rounded-full text-primary-foreground ${scoreToColor(
                     topResult.score,
@@ -180,7 +285,15 @@ const Index = () => {
                 className="w-full flex justify-between items-center p-0 h-auto hover:bg-transparent"
                 onClick={() => setShowAllResults(!showAllResults)}
               >
-                <span className="text-lg font-semibold">Other Similar Results ({otherResults.length})</span>
+                <div className="flex items-center gap-3 text-left">
+                  <span className="text-lg font-semibold">Other Similar Results ({otherResults.length})</span>
+                  {pipelineMeta?.rerank?.applied ? (
+                    <Badge variant="secondary" className="gap-1 hidden sm:inline-flex">
+                      <Sparkles className="w-3 h-3" />
+                      Reranked
+                    </Badge>
+                  ) : null}
+                </div>
                 {showAllResults ? (
                   <ChevronUp className="w-5 h-5" />
                 ) : (

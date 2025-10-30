@@ -24,16 +24,16 @@ export const ProtectedRoute = () => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center space-y-4 text-center p-6">
-        <h1 className="text-2xl font-semibold">Нет доступа</h1>
+        <h1 className="text-2xl font-semibold">Access denied</h1>
         <p className="text-muted-foreground max-w-md">
-          {error?.message ?? "Попробуй снова чуть позже."}
+          {error?.message ?? "Please refresh in a moment or sign back in."}
         </p>
         <button
           type="button"
           className="px-4 py-2 rounded-md bg-primary text-primary-foreground"
           onClick={() => window.location.reload()}
         >
-          Обновить страницу
+          Refresh page
         </button>
       </div>
     );

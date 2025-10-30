@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "npm-run-all --parallel dev:server dev:frontend",
     "dev:stack": "npm run dev",
-    "dev:server": "cross-env PORT=8081 npm run dev --workspace server",
-    "dev:frontend": "cross-env VITE_API_BASE=http://localhost:8081/api npm run dev --workspace frontend"
+    "dev:server": "npm run dev --workspace server",
+    "dev:frontend": "cross-env VITE_API_BASE=/api npm run dev --workspace frontend"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

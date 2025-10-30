@@ -23,8 +23,8 @@ export const Login = () => {
   useEffect(() => {
     if (loginError) {
       toast({
-        title: "Не вышло",
-        description: loginError.message ?? "Пароль не подошёл",
+        title: "Login failed",
+        description: loginError.message ?? "The password didn't match.",
         variant: "destructive",
       });
     }
@@ -42,8 +42,8 @@ export const Login = () => {
     event.preventDefault();
     if (!password.trim()) {
       toast({
-        title: "Нужен пароль",
-        description: "Введи пароль, выданный админом",
+        title: "Password required",
+        description: "Enter the access password provided by the admin.",
         variant: "destructive",
       });
       return;
@@ -52,9 +52,9 @@ export const Login = () => {
     try {
       await login({ password });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Пароль не подошёл";
+      const message = err instanceof Error ? err.message : "Password mismatch.";
       toast({
-        title: "Неверный пароль",
+        title: "Incorrect password",
         description: message,
         variant: "destructive",
       });
@@ -68,16 +68,16 @@ export const Login = () => {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto">
             <Lock className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl">Вход в портал</CardTitle>
+          <CardTitle className="text-2xl">Sign in</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Доступ только для сотрудников. Введи актуальный пароль доступа.
+            Internal portal. Use the latest access password.
           </p>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium text-foreground">
-                Пароль доступа
+                Access password
               </label>
               <div className="relative">
                 <Input
@@ -94,7 +94,7 @@ export const Login = () => {
                   className="absolute inset-y-0 right-0 px-3 text-sm text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword((prev) => !prev)}
                 >
-                  {showPassword ? "Скрыть" : "Показать"}
+                  {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
             </div>
@@ -103,15 +103,15 @@ export const Login = () => {
               {loginStatus === "pending" ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Проверяю...
+                  Checking...
                 </>
               ) : (
-                "Войти"
+                "Sign in"
               )}
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Если пароль не подходит, уточни у администратора портала.
+              Reach out to the portal admin if the password has changed.
             </p>
           </form>
         </CardContent>

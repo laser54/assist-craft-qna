@@ -55,14 +55,14 @@ const SettingsPage = () => {
       setForm(response.settings);
       queryClient.setQueryData(["settings"], response);
       toast({
-        title: "Настройки сохранены",
-        description: "Конфигурация обновлена.",
+        title: "Settings saved",
+        description: "Configuration updated successfully.",
       });
     },
     onError: (err) => {
-      const message = err instanceof ApiError ? err.message : "Не удалось сохранить настройки";
+      const message = err instanceof ApiError ? err.message : "Failed to persist settings";
       toast({
-        title: "Ошибка",
+        title: "Request failed",
         description: message,
         variant: "destructive",
       });
@@ -121,7 +121,7 @@ const SettingsPage = () => {
             {!form ? (
               <div className="flex flex-col items-center justify-center space-y-3 py-12 text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <p>Подтягиваю настройки...</p>
+                <p>Fetching settings...</p>
               </div>
             ) : (
               <form className="space-y-6" onSubmit={handleSubmit}>
@@ -136,7 +136,7 @@ const SettingsPage = () => {
                       value={form.topResultsCount}
                       onChange={(e) => handleNumberChange("topResultsCount", e.target.value)}
                     />
-                    <p className="text-sm text-muted-foreground">Сколько результатов запрашивать из Pinecone (1-50)</p>
+                    <p className="text-sm text-muted-foreground">How many vector matches to pull from Pinecone (1-50).</p>
                   </div>
 
                   <div className="space-y-2">
@@ -150,7 +150,7 @@ const SettingsPage = () => {
                       value={form.similarityThreshold}
                       onChange={(e) => handleNumberChange("similarityThreshold", e.target.value)}
                     />
-                    <p className="text-sm text-muted-foreground">Минимальная косинусная схожесть для показа результата</p>
+                    <p className="text-sm text-muted-foreground">Minimum cosine similarity required before showing a hit.</p>
                   </div>
 
                   <div className="space-y-2">
@@ -163,19 +163,19 @@ const SettingsPage = () => {
                       value={form.csvBatchSize}
                       onChange={(e) => handleNumberChange("csvBatchSize", e.target.value)}
                     />
-                    <p className="text-sm text-muted-foreground">Сколько строк обрабатываем за один проход импорта</p>
+                    <p className="text-sm text-muted-foreground">Rows to process per CSV import batch.</p>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Embedding Model</Label>
                     <Input value={form.model} readOnly className="bg-muted text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">Берём из env / Pinecone, редактирование в UI отключено</p>
+                    <p className="text-xs text-muted-foreground">Populated from env / Pinecone; editing is locked in UI.</p>
                   </div>
 
                   <div className="space-y-2">
                     <Label>Rerank Model</Label>
                     <Input value={form.rerankModel ?? "—"} readOnly className="bg-muted text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">Если нужно поменять модель — обнови переменные окружения</p>
+                    <p className="text-xs text-muted-foreground">Update env vars to switch rerank models.</p>
                   </div>
                 </div>
 
@@ -186,8 +186,8 @@ const SettingsPage = () => {
                     onClick={() => {
                       refetch();
                       toast({
-                        title: "Обновляю",
-                        description: "Тяну свежие настройки с сервера",
+                        title: "Syncing",
+                        description: "Pulling the latest settings from the server.",
                       });
                     }}
                     disabled={isBusy}
@@ -220,8 +220,8 @@ const SettingsPage = () => {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground leading-relaxed">
-              Pinecone конфиг подтягиваем из окружения сервера. Здесь можно управлять только тем, что хранится в SQLite
-              (лимиты поиска и размер CSV batch). Модельные параметры меняются через env или сам Pinecone dashboard.
+              Pinecone configuration comes from server env. Use this screen for SQLite-backed knobs (search limits and CSV
+              batch size). Model parameters stay managed via env or the Pinecone dashboard.
             </p>
           </CardContent>
         </Card>
