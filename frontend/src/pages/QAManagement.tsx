@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import Papa from "papaparse";
 import {
   useQuery,
   useMutation,
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
@@ -63,6 +65,58 @@ interface QaListResponse {
 }
 
 const PAGE_SIZE = 10;
+
+interface ImportProgressState {
+  total: number;
+  processed: number;
+  success: number;
+  failed: number;
+}
+
+const FALLBACK_ENCODINGS = ["utf-8", "utf-16le", "utf-16be", "windows-1251", "windows-1252"] as const;
+
+const detectBomEncoding = (view: Uint8Array): string | null => {
+  if (view.length >= 3 && view[0] === 0xef && view[1] === 0xbb && view[2] === 0xbf) {
+    return "utf-8";
+  }
+  if (view.length >= 2) {
+    if (view[0] === 0xff && view[1] === 0xfe) return "utf-16le";
+    if (view[0] === 0xfe && view[1] === 0xff) return "utf-16be";
+  }
+  return null;
+};
+
+const decodeCsvFile = async (file: File): Promise<{ text: string; encoding: string }> => {
+  const buffer = await file.arrayBuffer();
+  const view = new Uint8Array(buffer);
+  const bomEncoding = detectBomEncoding(view);
+  const encodingsToTry = bomEncoding
+    ? [bomEncoding, ...FALLBACK_ENCODINGS.filter((encoding) => encoding !== bomEncoding)]
+    : [...FALLBACK_ENCODINGS];
+
+  for (const encoding of encodingsToTry) {
+    try {
+      const decoder = new TextDecoder(encoding, { fatal: true });
+      const text = decoder.decode(buffer).replace(/^\uFEFF/, "");
+      return { text, encoding };
+    } catch (error) {
+      // try next encoding
+    }
+  }
+
+  const fallbackText = new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "");
+  return { text: fallbackText, encoding: "utf-8" };
+};
+
+const pickField = (row: Record<string, string | null | undefined>, candidates: string[]): string | undefined => {
+  for (const key of candidates) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
+};
 
 const buildQueryString = (page: number, search: string) => {
   const params = new URLSearchParams({
@@ -135,6 +189,8 @@ const QAManagement = () => {
   const [editLanguage, setEditLanguage] = useState("ru");
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
+  const [importEncoding, setImportEncoding] = useState<string | null>(null);
 
   const { toast } = useToast();
   const { refresh } = useAuth();
@@ -355,51 +411,113 @@ const QAManagement = () => {
     event.target.value = "";
     if (!file) return;
 
+    const fileName = file.name.toLowerCase();
+    const isCsv = file.type === "text/csv" || fileName.endsWith(".csv");
+    if (!isCsv) {
+      toast({
+        title: "Неверный формат",
+        description: "Пожалуйста, загрузите CSV-файл с колонками question, answer.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsImporting(true);
+    setImportProgress(null);
+    setImportEncoding(null);
+
     try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed)) {
-        throw new Error("Expected an array of objects");
+      const { text, encoding } = await decodeCsvFile(file);
+      setImportEncoding(encoding);
+
+      const parsed = Papa.parse<Record<string, string | null>>(text, {
+        header: true,
+        skipEmptyLines: "greedy",
+        transformHeader: (header) => header.trim().toLowerCase(),
+      });
+
+      if (parsed.errors && parsed.errors.length > 0) {
+        const firstError = parsed.errors[0];
+        const rowInfo = typeof firstError.row === "number" ? ` (строка ${firstError.row + 1})` : "";
+        throw new Error(`Ошибка чтения CSV: ${firstError.message}${rowInfo}`);
       }
 
-      let imported = 0;
-      const failures: { index: number; error: string }[] = [];
+      const rows = parsed.data
+        .map((row, index) => {
+          const record = row ?? {};
+          const rowNumber = index + 2; // +1 for header, +1 to start with 1
+          const question = pickField(record, ["question", "qestion"]);
+          const answer = pickField(record, ["answer"]);
+          const language = pickField(record, ["language", "lang"]);
+          return { rowNumber, question, answer, language };
+        })
+        .filter((item) => Boolean(item.question) || Boolean(item.answer));
 
-      for (let index = 0; index < parsed.length; index += 1) {
-        const entry = parsed[index] as Partial<QaItem>;
-        if (typeof entry.question !== "string" || typeof entry.answer !== "string") {
-          failures.push({ index, error: "Invalid shape" });
-          continue;
+      if (rows.length === 0) {
+        throw new Error("CSV не содержит строк с вопросами и ответами.");
+      }
+
+      setImportProgress({ total: rows.length, processed: 0, success: 0, failed: 0 });
+
+      let success = 0;
+      let failed = 0;
+      const failures: { rowNumber: number; error: string }[] = [];
+
+      for (let index = 0; index < rows.length; index += 1) {
+        const { rowNumber, question, answer, language } = rows[index];
+
+        if (!question || !answer) {
+          failed += 1;
+          failures.push({ rowNumber, error: "Пустой question или answer" });
+        } else {
+          try {
+            await apiFetch<QaItem>("/qa", {
+              method: "POST",
+              body: JSON.stringify({
+                question,
+                answer,
+                language: normaliseLanguage(language ?? "ru"),
+              }),
+            });
+            success += 1;
+          } catch (err) {
+            failed += 1;
+            const message = err instanceof ApiError ? err.message : "Ошибка сервера";
+            failures.push({ rowNumber, error: message });
+          }
         }
-        try {
-          await apiFetch<QaItem>("/qa", {
-            method: "POST",
-            body: JSON.stringify({
-              question: entry.question,
-              answer: entry.answer,
-              language: normaliseLanguage(entry.language ?? "ru"),
-            }),
-          });
-          imported += 1;
-        } catch (err) {
-          const message = err instanceof ApiError ? err.message : "Server error";
-          failures.push({ index, error: message });
-        }
+
+        setImportProgress({
+          total: rows.length,
+          processed: index + 1,
+          success,
+          failed,
+        });
       }
 
       invalidateQa();
       await refresh().catch(() => undefined);
 
+      const summary = `Добавлено: ${success}. Ошибок: ${failed}. Кодировка: ${encoding.toUpperCase()}`;
+      const failurePreview = failures
+        .slice(0, 3)
+        .map((failure) => `стр. ${failure.rowNumber}: ${failure.error}`)
+        .join(" · ");
+
       toast({
-        title: "Import complete",
-        description: `Success: ${imported}. Errors: ${failures.length}`,
+        title: "Импорт завершён",
+        description:
+          failures.length > 0
+            ? `${summary}${failurePreview ? `\n${failurePreview}${failures.length > 3 ? " · …" : ""}` : ""}`
+            : summary,
         variant: failures.length > 0 ? "destructive" : "default",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to parse the file";
+      setImportProgress(null);
+      setImportEncoding(null);
+      const message = error instanceof Error ? error.message : "Не удалось обработать CSV";
       toast({
-        title: "Import failed",
+        title: "Импорт не удался",
         description: message,
         variant: "destructive",
       });
@@ -421,24 +539,33 @@ const QAManagement = () => {
         items = items.concat(chunk.items);
       }
 
-      const blob = new Blob([JSON.stringify(items, null, 2)], {
-        type: "application/json",
+      const csvRows = items.map((item) => ({
+        question: item.question,
+        answer: item.answer,
+        language: item.language ?? "ru",
+      }));
+      const csv = Papa.unparse(csvRows, {
+        columns: ["question", "answer", "language"],
+      });
+
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8",
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "qa-export.json";
+      link.download = "qa-export.csv";
       link.click();
       URL.revokeObjectURL(url);
 
       toast({
-        title: "Export ready",
-        description: `Exported ${items.length} items`,
+        title: "Экспорт готов",
+        description: `Экспортировано ${items.length} записей в CSV (UTF-8)`,
       });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Export failed";
+      const message = error instanceof ApiError ? error.message : "Не удалось экспортировать CSV";
       toast({
-        title: "Request failed",
+        title: "Экспорт не удался",
         description: message,
         variant: "destructive",
       });
@@ -467,13 +594,13 @@ const QAManagement = () => {
           <div className="flex flex-wrap gap-2">
             <Button onClick={handleExport} variant="outline" className="gap-2" disabled={isExporting || isProcessing}>
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Export JSON
+              Export CSV
             </Button>
             <Button asChild variant="outline" disabled={isImporting || isProcessing}>
               <label className="cursor-pointer flex items-center gap-2">
                 {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                Import JSON
-                <input type="file" accept="application/json" className="hidden" onChange={handleFileUpload} />
+                Import CSV
+                <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileUpload} />
               </label>
             </Button>
             <Button variant="outline" onClick={() => invalidateQa()} className="gap-2" disabled={isProcessing}>
@@ -491,6 +618,28 @@ const QAManagement = () => {
             </Button>
           </div>
         </div>
+
+        {importProgress && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-primary">
+              <span>
+                Обработано {importProgress.processed} из {importProgress.total} строк CSV
+              </span>
+              {importEncoding ? (
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Кодировка: {importEncoding.toUpperCase()}
+                </span>
+              ) : null}
+            </div>
+            <Progress
+              value={importProgress.total === 0 ? 0 : Math.round((importProgress.processed / importProgress.total) * 100)}
+            />
+            <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+              <span>Успешно: {importProgress.success}</span>
+              <span>Ошибки: {importProgress.failed}</span>
+            </div>
+          </div>
+        )}
 
         <Card className="border-primary/20 shadow-lg">
           <CardHeader>

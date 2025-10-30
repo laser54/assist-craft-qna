@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info } from "lucide-react";
+import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -124,6 +124,76 @@ const Index = () => {
             Enter a customer query to find the most relevant answer
           </p>
         </div>
+
+        <Card className="border-primary/40 shadow-xl bg-gradient-to-br from-card via-primary/5 to-accent/10">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-2xl text-primary">Почему наш поиск умнее обычного фильтра по словам</CardTitle>
+            <p className="text-muted-foreground text-sm">
+              Мы используем весь стек Pinecone + трансформеры, чтобы понимать смысл вопроса, а не только совпадения по тексту.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <div className="flex gap-3">
+              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                1
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Brain className="w-4 h-4 text-primary" />
+                  Нейронные эмбеддинги вместо ключевых слов
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Pinecone Inference превращает вопрос в многомерный вектор. Такой подход улавливает синонимы и намерение клиента, даже если формулировка другая.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                2
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Database className="w-4 h-4 text-primary" />
+                  Векторное хранилище Pinecone
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Мы сравниваем эмбеддинг запроса с тысячами ответов за миллисекунды. Алгоритм ищет по смыслу, поэтому не теряет релевантность, даже если нет прямого совпадения.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                3
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  Трансформерный reranker проверяет нюансы
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Cross-encoder перечитывает топ-ответы и поднимает самый полный и вежливый текст на первое место. Так мы избегаем "шумных" совпадений.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                4
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 font-semibold">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  Контроль качества и fallback на каждом шаге
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Метрики показывают, какой индекс и модель сработали. Если rerank недоступен, система автоматически переключится на безопасный векторный порядок.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="shadow-sm">
