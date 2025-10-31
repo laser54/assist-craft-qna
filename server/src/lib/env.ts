@@ -20,6 +20,7 @@ const envSchema = z.object({
   PINECONE_RERANK_MODEL: z.string().trim().min(1).optional(),
   PINECONE_RERANK_FALLBACK_MODEL: z.string().trim().min(1).default("bge-reranker-v2-m3"),
   PINECONE_EMBED_INPUT_TYPE: z.string().trim().min(1).optional(),
+  PINECONE_RERANK_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
   CSV_BATCH_SIZE: z.coerce.number().int().positive().default(25),
   DEFAULT_LOCALE: z.string().trim().min(2).default("ru-RU"),
 });
@@ -27,6 +28,7 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema> & {
   cookieSecure: boolean;
   pineconeConfigured: boolean;
+  pineconeRerankDailyLimit: number | null;
 };
 
 export const env: Env = (() => {
@@ -50,5 +52,6 @@ export const env: Env = (() => {
     COOKIE_DOMAIN: cookieDomain,
     cookieSecure,
     pineconeConfigured,
+    pineconeRerankDailyLimit: base.PINECONE_RERANK_DAILY_LIMIT ?? null,
   };
 })();

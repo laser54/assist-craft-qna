@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck } from "lucide-react";
+import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 interface SearchMatch {
   id: string;
   score: number;
+  vectorScore: number;
   question: string;
   answer: string;
   language: string;
@@ -31,6 +32,13 @@ interface SearchPipelineMeta {
     applied: boolean;
     fallbackReason: string | null;
     attemptedModels: string[];
+    usage?: {
+      lastCallUnits: number;
+      unitsUsed: number;
+      limit: number | null;
+      remaining: number | null;
+      date: string;
+    };
   };
 }
 
@@ -40,6 +48,10 @@ const scoreToColor = (score: number): string => {
   if (score >= 0.4) return "bg-amber-400/80";
   return "bg-rose-500/80";
 };
+
+const LOW_SCORE_THRESHOLD = 0.2;
+
+const isLowScore = (score: number): boolean => score < LOW_SCORE_THRESHOLD;
 
 const Index = () => {
   const [query, setQuery] = useState("");
@@ -67,6 +79,15 @@ const Index = () => {
             applied: meta.rerank.applied,
             fallbackReason: meta.rerank.fallbackReason ?? null,
             attemptedModels: Array.isArray(meta.rerank.attemptedModels) ? meta.rerank.attemptedModels : [],
+            usage: meta.rerank.usage
+              ? {
+                  lastCallUnits: meta.rerank.usage.lastCallUnits,
+                  unitsUsed: meta.rerank.usage.unitsUsed,
+                  limit: meta.rerank.usage.limit,
+                  remaining: meta.rerank.usage.remaining,
+                  date: meta.rerank.usage.date,
+                }
+              : undefined,
           },
         });
       } else {
@@ -114,10 +135,8 @@ const Index = () => {
   const sortedResults = [...results].sort((a, b) => b.score - a.score);
   const topResult = sortedResults[0];
   const otherResults = sortedResults.slice(1);
-  const topScoreZero = Boolean(
-    topResult && (topResult.score <= 0 || topResult.score * 100 < 0.5),
-  );
-  const noResults = hasSearched && !isSearching && (sortedResults.length === 0 || topScoreZero);
+  const topResultLowScore = Boolean(topResult && isLowScore(topResult.score));
+  const noResults = hasSearched && !isSearching && sortedResults.length === 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -240,6 +259,35 @@ const Index = () => {
                   </div>
                 </TooltipContent>
               </Tooltip>
+              {pipelineMeta.rerank.usage ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-1 whitespace-nowrap cursor-help">
+                      <Zap className="w-3.5 h-3.5" />
+                      {pipelineMeta.rerank.usage.limit != null
+                        ? `${pipelineMeta.rerank.usage.remaining ?? 0}/${pipelineMeta.rerank.usage.limit} credits`
+                        : `${pipelineMeta.rerank.usage.unitsUsed} credits used`}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1 text-sm">
+                      <p>Date: {pipelineMeta.rerank.usage.date}</p>
+                      <p>Used today: {pipelineMeta.rerank.usage.unitsUsed}</p>
+                      {pipelineMeta.rerank.usage.limit != null ? (
+                        <p>Remaining: {pipelineMeta.rerank.usage.remaining ?? 0}</p>
+                      ) : (
+                        <p className="text-muted-foreground">No daily limit configured.</p>
+                      )}
+                      {pipelineMeta.rerank.usage.lastCallUnits > 0 ? (
+                        <p className="text-muted-foreground">
+                          Last call consumed {pipelineMeta.rerank.usage.lastCallUnits} unit
+                          {pipelineMeta.rerank.usage.lastCallUnits === 1 ? "" : "s"}.
+                        </p>
+                      ) : null}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
               {pipelineMeta.rerank.fallbackReason && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -264,7 +312,7 @@ const Index = () => {
           </TooltipProvider>
         )}
 
-        {topResult && !topScoreZero && !noResults && (
+        {topResult && !noResults && (
           <Card className="border-primary/50 shadow-xl bg-gradient-to-br from-card to-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -291,10 +339,20 @@ const Index = () => {
                 <p className="font-semibold text-sm text-muted-foreground mb-2">Question:</p>
                 <p className="text-lg">{topResult.question}</p>
               </div>
-              <div className="p-4 rounded-lg bg-primary/5">
-                <p className="font-semibold text-sm text-primary mb-2">Answer:</p>
-                <p className="whitespace-pre-wrap leading-relaxed">{topResult.answer}</p>
-              </div>
+              {topResultLowScore ? (
+                <div className="p-4 rounded-lg border border-amber-400/60 bg-amber-500/10 text-sm space-y-2">
+                  <p className="font-semibold text-amber-700">Low confidence match</p>
+                  <p className="text-amber-800/90">
+                    This answer scored {(topResult.score * 100).toFixed(1)}%. Refine the query or add
+                    a dedicated Q&A entry before trusting it.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg bg-primary/5">
+                  <p className="font-semibold text-sm text-primary mb-2">Answer:</p>
+                  <p className="whitespace-pre-wrap leading-relaxed">{topResult.answer}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -338,7 +396,14 @@ const Index = () => {
                       </span>
                     </div>
                     <p className="font-medium mb-2">{result.question}</p>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
+                    {isLowScore(result.score) ? (
+                      <p className="text-xs text-amber-700/90">
+                        Match confidence {(result.score * 100).toFixed(1)}%. Answer hidden until you tune the query or
+                        strengthen the knowledge base.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
+                    )}
                   </div>
                 ))}
               </CardContent>

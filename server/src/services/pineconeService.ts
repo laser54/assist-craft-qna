@@ -89,6 +89,23 @@ export const pineconeService = {
     if (!index) return null;
     return index.describeIndexStats();
   },
+
+  async deleteAllVectors(namespace?: string): Promise<void> {
+    if (!env.pineconeConfigured) return;
+    const index = pineconeClient.getIndex();
+    if (!index) return;
+    const scoped = namespace ? index.namespace(namespace) : index.namespace(INDEX_NAMESPACE);
+    try {
+      await scoped.deleteAll();
+      console.log(`[Pinecone] Deleted all vectors from namespace: ${namespace ?? INDEX_NAMESPACE}`);
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        console.log(`[Pinecone] Namespace ${namespace ?? INDEX_NAMESPACE} is already empty`);
+        return;
+      }
+      throw error;
+    }
+  },
 };
 
 

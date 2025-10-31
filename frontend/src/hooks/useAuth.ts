@@ -13,6 +13,12 @@ interface MetricsResponse {
   ok: boolean;
   totalQa?: number;
   pineconeVectors?: number;
+  rerankUsage?: {
+    date: string;
+    unitsUsed: number;
+    limit: number | null;
+    remaining: number | null;
+  };
 }
 
 interface UseAuthResult {

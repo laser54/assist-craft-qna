@@ -11,6 +11,7 @@ import { qaRouter } from "./routes/qa";
 import { searchRouter } from "./routes/search";
 import { qaService } from "./services/qaService";
 import { pineconeService } from "./services/pineconeService";
+import { rerankService } from "./services/rerankService";
 import { settingsRouter } from "./routes/settings";
 
 const app = express();
@@ -39,7 +40,8 @@ app.get("/api/metrics", authMiddleware, async (_req, res, next) => {
       const stats = await pineconeService.describeIndexStats();
       pineconeVectors = stats?.totalRecordCount ?? null;
     }
-    res.json({ ok: true, totalQa, pineconeVectors });
+    const rerankUsage = rerankService.getUsageSummary();
+    res.json({ ok: true, totalQa, pineconeVectors, rerankUsage });
   } catch (error) {
     next(error);
   }

@@ -175,27 +175,37 @@ export const qaService = {
   async syncVector(qa: QAPair): Promise<void> {
     try {
       const text = `${qa.question}\n\n${qa.answer}`;
-      const { embedding } = await embeddingService.embed(text);
+      console.log(`[syncVector] Syncing QA ${qa.id}, question: "${qa.question.substring(0, 50)}..."`);
+      const { embedding, model } = await embeddingService.embed(text);
+      console.log(`[syncVector] Embedding model: ${model}, dimension: ${embedding.length}`);
       if (!embedding || embedding.length === 0) {
+        console.warn(`[syncVector] No embedding for QA ${qa.id}, skipping`);
         db.prepare("UPDATE qa_pairs SET embedding_status = ? WHERE id = ?").run("skipped", qa.id);
         return;
       }
+      const metadata = {
+        question: qa.question,
+        answer: qa.answer,
+        language: qa.language,
+      };
+      console.log(`[syncVector] Upserting to Pinecone with metadata:`, JSON.stringify(metadata, null, 2));
       await pineconeService.upsertVector({
         id: qa.id,
         values: embedding,
-        metadata: {
-          question: qa.question,
-          answer: qa.answer,
-          language: qa.language,
-        },
+        metadata,
         namespace: "qa",
       });
+      
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      
+      console.log(`[syncVector] Successfully synced QA ${qa.id} to Pinecone (id=${qa.id}, has metadata: question="${metadata.question?.substring(0, 30)}...", answer length=${metadata.answer?.length ?? 0})`);
       db.prepare(
         `UPDATE qa_pairs
          SET pinecone_id = ?, embedding_status = 'ready', updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`
       ).run(qa.id, qa.id);
     } catch (error) {
+      console.error(`[syncVector] Failed to sync QA ${qa.id}:`, error);
       db.prepare(
         `UPDATE qa_pairs
          SET embedding_status = 'failed', updated_at = CURRENT_TIMESTAMP
@@ -246,6 +256,49 @@ export const qaService = {
     return {
       deleted: typeof info.changes === "number" ? info.changes : rows.length,
       vectorFailures,
+    };
+  },
+
+  async resyncAll(): Promise<{ total: number; synced: number; failed: number; errors: string[] }> {
+    console.log(`[resyncAll] Starting resync - clearing Pinecone namespace first`);
+    try {
+      await pineconeService.deleteAllVectors("qa");
+      console.log(`[resyncAll] Pinecone namespace cleared`);
+    } catch (error) {
+      console.error(`[resyncAll] Failed to clear Pinecone namespace:`, error);
+    }
+
+    const allRows = db.prepare("SELECT * FROM qa_pairs ORDER BY updated_at DESC").all();
+    const allQa = allRows.map(mapRow);
+    const total = allQa.length;
+    let synced = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    console.log(`[resyncAll] Starting resync of ${total} QA pairs`);
+
+    for (const qa of allQa) {
+      try {
+        await this.syncVector(qa);
+        synced += 1;
+        if (synced % 10 === 0) {
+          console.log(`[resyncAll] Progress: ${synced}/${total} synced`);
+        }
+      } catch (error) {
+        failed += 1;
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        errors.push(`QA ${qa.id}: ${errorMsg}`);
+        console.error(`[resyncAll] Failed to sync QA ${qa.id}:`, error);
+      }
+    }
+
+    console.log(`[resyncAll] Completed: ${synced} synced, ${failed} failed out of ${total} total`);
+
+    return {
+      total,
+      synced,
+      failed,
+      errors: errors.slice(0, 50),
     };
   },
 };

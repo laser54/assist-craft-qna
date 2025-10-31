@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import Papa from "papaparse";
+import { read, utils, writeFileXLSX } from "xlsx";
 import {
   useQuery,
   useMutation,
@@ -80,39 +80,92 @@ interface ImportProgressState {
   failed: number;
 }
 
-const FALLBACK_ENCODINGS = ["utf-8", "utf-16le", "utf-16be", "windows-1251", "windows-1252"] as const;
+interface ImportRow {
+  rowNumber: number;
+  question?: string;
+  answer?: string;
+  language?: string;
+  parseError?: string;
+}
 
-const detectBomEncoding = (view: Uint8Array): string | null => {
-  if (view.length >= 3 && view[0] === 0xef && view[1] === 0xbb && view[2] === 0xbf) {
-    return "utf-8";
+type RawCellValue = string | number | boolean | Date | null | undefined;
+
+const toCellString = (value: RawCellValue): string | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return undefined;
+    return value.toString();
   }
-  if (view.length >= 2) {
-    if (view[0] === 0xff && view[1] === 0xfe) return "utf-16le";
-    if (view[0] === 0xfe && view[1] === 0xff) return "utf-16be";
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
   }
-  return null;
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
 };
 
-const decodeCsvFile = async (file: File): Promise<{ text: string; encoding: string }> => {
+const parseXlsxFile = async (file: File): Promise<{ sheetName: string; rows: ImportRow[] }> => {
   const buffer = await file.arrayBuffer();
-  const view = new Uint8Array(buffer);
-  const bomEncoding = detectBomEncoding(view);
-  const encodingsToTry = bomEncoding
-    ? [bomEncoding, ...FALLBACK_ENCODINGS.filter((encoding) => encoding !== bomEncoding)]
-    : [...FALLBACK_ENCODINGS];
 
-  for (const encoding of encodingsToTry) {
-    try {
-      const decoder = new TextDecoder(encoding, { fatal: true });
-      const text = decoder.decode(buffer).replace(/^\uFEFF/, "");
-      return { text, encoding };
-    } catch (error) {
-      // try next encoding
-    }
+  let workbook;
+  try {
+    workbook = read(buffer, { type: "array", cellDates: true });
+  } catch (error) {
+    throw new Error("Не удалось прочитать XLSX. Проверьте файл.");
   }
 
-  const fallbackText = new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "");
-  return { text: fallbackText, encoding: "utf-8" };
+  const [sheetName] = workbook.SheetNames;
+  if (!sheetName) {
+    throw new Error("XLSX-файл не содержит листов.");
+  }
+
+  const worksheet = workbook.Sheets[sheetName];
+  const sheetRows = utils.sheet_to_json<RawCellValue[]>(worksheet, {
+    header: 1,
+    blankrows: true,
+    defval: null,
+    raw: false,
+  });
+
+  if (sheetRows.length === 0) {
+    throw new Error("XLSX-файл пуст.");
+  }
+
+  const headerRow = sheetRows[0];
+  if (!Array.isArray(headerRow)) {
+    throw new Error("Не удалось определить заголовок листа.");
+  }
+
+  const headers = headerRow.map((value) => toCellString(value)?.toLowerCase() ?? "");
+  const dataRows = sheetRows.slice(1);
+
+  const rows: ImportRow[] = dataRows.map((rowValues, index) => {
+    const rowNumber = index + 2;
+    if (!Array.isArray(rowValues)) {
+      return { rowNumber, parseError: "Некорректная структура строки XLSX" };
+    }
+
+    const record: Record<string, string | null | undefined> = {};
+    headers.forEach((header, colIndex) => {
+      if (!header) return;
+      const cell = toCellString(rowValues[colIndex]);
+      if (cell) {
+        record[header] = cell;
+      }
+    });
+
+    if (Object.keys(record).length === 0) {
+      return { rowNumber };
+    }
+
+    const question = pickField(record, ["question", "qestion"]);
+    const answer = pickField(record, ["answer", "ans"]);
+    const language = pickField(record, ["language", "lang"]);
+
+    return { rowNumber, question, answer, language };
+  });
+
+  return { sheetName, rows };
 };
 
 const pickField = (row: Record<string, string | null | undefined>, candidates: string[]): string | undefined => {
@@ -196,8 +249,9 @@ const QAManagement = () => {
   const [editLanguage, setEditLanguage] = useState("ru");
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
-  const [importEncoding, setImportEncoding] = useState<string | null>(null);
+  const [importSheetName, setImportSheetName] = useState<string | null>(null);
 
   const { toast } = useToast();
   const { refresh } = useAuth();
@@ -437,11 +491,13 @@ const QAManagement = () => {
     if (!file) return;
 
     const fileName = file.name.toLowerCase();
-    const isCsv = file.type === "text/csv" || fileName.endsWith(".csv");
-    if (!isCsv) {
+    const isXlsx =
+      file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      fileName.endsWith(".xlsx");
+    if (!isXlsx) {
       toast({
         title: "Неверный формат",
-        description: "Пожалуйста, загрузите CSV-файл с колонками question, answer.",
+        description: "Пожалуйста, загрузите XLSX-файл с колонками question, answer.",
         variant: "destructive",
       });
       return;
@@ -449,54 +505,42 @@ const QAManagement = () => {
 
     setIsImporting(true);
     setImportProgress(null);
-    setImportEncoding(null);
+    setImportSheetName(null);
 
     try {
-      const { text, encoding } = await decodeCsvFile(file);
-      setImportEncoding(encoding);
+      const { sheetName, rows: parsedRows } = await parseXlsxFile(file);
+      setImportSheetName(sheetName);
 
-      const parsed = Papa.parse<Record<string, string | null>>(text, {
-        header: true,
-        skipEmptyLines: "greedy",
-        transformHeader: (header) => header.trim().toLowerCase(),
+      const rows = parsedRows.filter((item) => {
+        if (item.parseError) return true;
+        return Boolean(item.question) || Boolean(item.answer);
       });
 
-      if (parsed.errors && parsed.errors.length > 0) {
-        const firstError = parsed.errors[0];
-        const rowInfo = typeof firstError.row === "number" ? ` (строка ${firstError.row + 1})` : "";
-        throw new Error(`Ошибка чтения CSV: ${firstError.message}${rowInfo}`);
-      }
-
-      const rows = parsed.data
-        .map((row, index) => {
-          const record = row ?? {};
-          const rowNumber = index + 2; // +1 for header, +1 to start with 1
-          const question = pickField(record, ["question", "qestion"]);
-          const answer = pickField(record, ["answer"]);
-          const language = pickField(record, ["language", "lang"]);
-          return { rowNumber, question, answer, language };
-        })
-        .filter((item) => Boolean(item.question) || Boolean(item.answer));
-
       if (rows.length === 0) {
-        throw new Error("CSV не содержит строк с вопросами и ответами.");
+        throw new Error("XLSX не содержит строк, которые удалось разобрать.");
       }
 
       setImportProgress({ total: rows.length, processed: 0, success: 0, failed: 0 });
 
+      console.log(`[Import Excel] Starting import of ${rows.length} rows from sheet "${sheetName}"`);
+      
       let success = 0;
       let failed = 0;
-      const failures: { rowNumber: number; error: string }[] = [];
+      const failures: { rowNumber: number | null; error: string }[] = [];
 
       for (let index = 0; index < rows.length; index += 1) {
-        const { rowNumber, question, answer, language } = rows[index];
+        const { rowNumber, question, answer, language, parseError } = rows[index];
 
-        if (!question || !answer) {
+        if (parseError) {
+          failed += 1;
+          failures.push({ rowNumber, error: `Ошибка структуры XLSX: ${parseError}` });
+        } else if (!question || !answer) {
           failed += 1;
           failures.push({ rowNumber, error: "Пустой question или answer" });
         } else {
           try {
-            await apiFetch<QaItem>("/qa", {
+            console.log(`[Import Excel] Importing row ${rowNumber}: question="${question.substring(0, 50)}..."`);
+            const result = await apiFetch<{ item: QaItem | null; replaced: boolean }>("/qa", {
               method: "POST",
               body: JSON.stringify({
                 question,
@@ -504,11 +548,26 @@ const QAManagement = () => {
                 language: normaliseLanguage(language ?? "ru"),
               }),
             });
+            
+            if (!result?.item) {
+              throw new Error("Server returned no item");
+            }
+            
+            const item = result.item;
+            if (item.embedding_status !== "ready" && item.embedding_status !== "pending") {
+              console.warn(`[Import] QA ${item.id} sync status: ${item.embedding_status} for question: "${question.substring(0, 50)}..."`);
+            }
+            
             success += 1;
+            
+            if (index < rows.length - 1) {
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
           } catch (err) {
             failed += 1;
             const message = err instanceof ApiError ? err.message : "Ошибка сервера";
             failures.push({ rowNumber, error: message });
+            console.error(`[Import] Failed to import row ${rowNumber}:`, err);
           }
         }
 
@@ -523,10 +582,13 @@ const QAManagement = () => {
       invalidateQa();
       await refresh().catch(() => undefined);
 
-      const summary = `Добавлено: ${success}. Ошибок: ${failed}. Кодировка: ${encoding.toUpperCase()}`;
+      const summary = `Добавлено: ${success}. Ошибок: ${failed}${sheetName ? `. Лист: ${sheetName}` : ""}`;
       const failurePreview = failures
         .slice(0, 3)
-        .map((failure) => `стр. ${failure.rowNumber}: ${failure.error}`)
+        .map((failure) => {
+          const prefix = failure.rowNumber ? `стр. ${failure.rowNumber}` : "лист";
+          return `${prefix}: ${failure.error}`;
+        })
         .join(" · ");
 
       toast({
@@ -539,8 +601,8 @@ const QAManagement = () => {
       });
     } catch (error) {
       setImportProgress(null);
-      setImportEncoding(null);
-      const message = error instanceof Error ? error.message : "Не удалось обработать CSV";
+      setImportSheetName(null);
+      const message = error instanceof Error ? error.message : "Не удалось обработать XLSX";
       toast({
         title: "Импорт не удался",
         description: message,
@@ -564,31 +626,28 @@ const QAManagement = () => {
         items = items.concat(chunk.items);
       }
 
-      const csvRows = items.map((item) => ({
+      const worksheetData = items.map((item) => ({
         question: item.question,
         answer: item.answer,
         language: item.language ?? "ru",
       }));
-      const csv = Papa.unparse(csvRows, {
-        columns: ["question", "answer", "language"],
-      });
 
-      const blob = new Blob(["\uFEFF" + csv], {
-        type: "text/csv;charset=utf-8",
+      const workbook = utils.book_new();
+      const worksheet = utils.json_to_sheet(worksheetData, {
+        header: ["question", "answer", "language"],
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "qa-export.csv";
-      link.click();
-      URL.revokeObjectURL(url);
+      utils.book_append_sheet(workbook, worksheet, "QA");
+
+      writeFileXLSX(workbook, "qa-export.xlsx", {
+        compression: true,
+      });
 
       toast({
         title: "Экспорт готов",
-        description: `Экспортировано ${items.length} записей в CSV (UTF-8)`,
+        description: `Экспортировано ${items.length} записей в XLSX`,
       });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Не удалось экспортировать CSV";
+      const message = error instanceof ApiError ? error.message : "Не удалось экспортировать XLSX";
       toast({
         title: "Экспорт не удался",
         description: message,
@@ -596,6 +655,37 @@ const QAManagement = () => {
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleResync = async () => {
+    if (!confirm("Пересинхронизировать все векторы в Pinecone? Это очистит namespace 'qa' и заново синхронизирует все записи из SQLite. Продолжить?")) {
+      return;
+    }
+
+    setIsResyncing(true);
+    try {
+      const result = await apiFetch<{ total: number; synced: number; failed: number; errors: string[] }>("/qa/resync", {
+        method: "POST",
+      });
+
+      toast({
+        title: "Пересинхронизация завершена",
+        description: `Синхронизировано: ${result.synced} из ${result.total}${result.failed > 0 ? `. Ошибок: ${result.failed}` : ""}`,
+        variant: result.failed > 0 ? "destructive" : "default",
+      });
+
+      invalidateQa();
+      await refresh().catch(() => undefined);
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Не удалось пересинхронизировать";
+      toast({
+        title: "Пересинхронизация не удалась",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsResyncing(false);
     }
   };
 
@@ -619,18 +709,32 @@ const QAManagement = () => {
           <div className="flex flex-wrap gap-2">
             <Button onClick={handleExport} variant="outline" className="gap-2" disabled={isExporting || isProcessing}>
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Export CSV
+              Export XLSX
             </Button>
             <Button asChild variant="outline" disabled={isImporting || isProcessing}>
               <label className="cursor-pointer flex items-center gap-2">
                 {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                Import CSV
-                <input type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileUpload} />
+                Import XLSX
+                <input
+                  type="file"
+                  accept=".xlsx,.xlsm,.xlsb,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
               </label>
             </Button>
             <Button variant="outline" onClick={() => invalidateQa()} className="gap-2" disabled={isProcessing}>
               <RefreshCw className="w-4 h-4" />
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleResync}
+              className="gap-2"
+              disabled={isResyncing || isProcessing || isImporting}
+            >
+              {isResyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+              Resync Pinecone
             </Button>
             <Button
               variant="destructive"
@@ -648,11 +752,11 @@ const QAManagement = () => {
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-primary">
               <span>
-                Обработано {importProgress.processed} из {importProgress.total} строк CSV
+                Обработано {importProgress.processed} из {importProgress.total} строк XLSX
               </span>
-              {importEncoding ? (
+              {importSheetName ? (
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Кодировка: {importEncoding.toUpperCase()}
+                  Лист: {importSheetName}
                 </span>
               ) : null}
             </div>

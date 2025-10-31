@@ -39,18 +39,41 @@ router.get("/", (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const body = qaBodySchema.parse(req.body ?? {});
+    console.log(`[POST /qa] Received request: question="${body.question.substring(0, 50)}...", answer length=${body.answer.length}, language=${body.language ?? "undefined"}`);
     const createInput = {
       question: body.question,
       answer: body.answer,
       ...(body.language !== undefined ? { language: body.language } : {}),
     };
     const result = qaService.create(createInput);
-    try {
-      await qaService.syncVector(result.record);
-    } catch (error) {
-      console.error("Failed to sync Pinecone for QA", result.record.id, error);
+    console.log(`[POST /qa] Created QA ${result.record.id}, replaced: ${result.replaced}, question="${result.record.question.substring(0, 50)}..."`);
+    
+    let syncAttempts = 0;
+    const maxSyncAttempts = 3;
+    let syncSuccess = false;
+    
+    while (syncAttempts < maxSyncAttempts && !syncSuccess) {
+      syncAttempts += 1;
+      try {
+        await qaService.syncVector(result.record);
+        console.log(`[POST /qa] Successfully synced QA ${result.record.id} to Pinecone (attempt ${syncAttempts})`);
+        syncSuccess = true;
+      } catch (error) {
+        console.error(`[POST /qa] Failed to sync Pinecone for QA ${result.record.id} (attempt ${syncAttempts}/${maxSyncAttempts}):`, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[POST /qa] Error details:`, errorMessage);
+        
+        if (syncAttempts < maxSyncAttempts) {
+          const delay = syncAttempts * 1000;
+          console.log(`[POST /qa] Retrying sync in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          console.error(`[POST /qa] All ${maxSyncAttempts} sync attempts failed for QA ${result.record.id}`);
+        }
+      }
     }
     const fresh = qaService.getById(result.record.id);
+    console.log(`[POST /qa] Returning QA ${fresh?.id}, embedding_status=${fresh?.embedding_status}, pinecone_id=${fresh?.pinecone_id ?? "null"}`);
     const statusCode = result.replaced ? 200 : 201;
     res.status(statusCode).json({
       item: fresh,
@@ -112,6 +135,15 @@ router.delete("/:id", async (req, res, next) => {
 router.delete("/", async (req, res, next) => {
   try {
     const result = await qaService.deleteAll();
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/resync", async (req, res, next) => {
+  try {
+    const result = await qaService.resyncAll();
     res.json(result);
   } catch (error) {
     next(error);
