@@ -41,8 +41,11 @@ const mapRow = (row: any): QAPair => ({
 });
 
 const selectByIdStmt = db.prepare("SELECT * FROM qa_pairs WHERE id = ?");
+const selectByQuestionStmt = db.prepare(
+  "SELECT * FROM qa_pairs WHERE TRIM(LOWER(question)) = TRIM(LOWER(?)) LIMIT 1",
+);
 const countStmt = db.prepare("SELECT COUNT(*) as count FROM qa_pairs");
-const listIdsStmt = db.prepare("SELECT id FROM qa_pairs");
+const listIdsStmt = db.prepare("SELECT id, pinecone_id FROM qa_pairs");
 
 const buildSearchClause = (search?: string) => {
   if (!search?.trim()) {
@@ -63,6 +66,14 @@ const listQuery = (search?: string, page = 1, pageSize = DEFAULT_PAGE_SIZE) => {
   } ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`;
   return db.prepare(sql).all(...params, pageSize, offset).map(mapRow);
 };
+
+const normaliseQuestion = (value: string) => value.trim();
+const normaliseAnswer = (value: string) => value.trim();
+
+export interface CreateResult {
+  record: QAPair;
+  replaced: boolean;
+}
 
 export const qaService = {
   list(options: ListOptions = {}): ListResult {
@@ -85,27 +96,54 @@ export const qaService = {
     return mapRow(row);
   },
 
-  create(input: { question: string; answer: string; language?: string }): QAPair {
-    const id = randomUUID();
+  getByQuestion(question: string): QAPair | null {
+    const row = selectByQuestionStmt.get(question);
+    if (!row) return null;
+    return mapRow(row);
+  },
+
+  create(input: { question: string; answer: string; language?: string }): CreateResult {
+    const question = normaliseQuestion(input.question);
+    const answer = normaliseAnswer(input.answer);
     const language = input.language ?? "ru";
+    const existing = this.getByQuestion(question);
     const now = new Date().toISOString();
+
+    if (existing) {
+      db.prepare(
+        `UPDATE qa_pairs
+         SET question = ?, answer = ?, language = ?, updated_at = ?, embedding_status = 'pending'
+         WHERE id = ?`
+      ).run(question, answer, language, now, existing.id);
+      return {
+        record: this.getById(existing.id)!,
+        replaced: true,
+      };
+    }
+
+    const id = randomUUID();
     db.prepare(
       `INSERT INTO qa_pairs (id, question, answer, language, pinecone_id, embedding_status, created_at, updated_at)
        VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?)`
-    ).run(id, input.question, input.answer, language, now, now);
-    return this.getById(id)!;
+    ).run(id, question, answer, language, now, now);
+    return {
+      record: this.getById(id)!,
+      replaced: false,
+    };
   },
 
   update(id: string, input: { question: string; answer: string; language?: string }): QAPair | null {
     const existing = this.getById(id);
     if (!existing) return null;
+    const question = normaliseQuestion(input.question);
+    const answer = normaliseAnswer(input.answer);
     const language = input.language ?? existing.language ?? "ru";
     const now = new Date().toISOString();
     db.prepare(
       `UPDATE qa_pairs
        SET question = ?, answer = ?, language = ?, updated_at = ?, embedding_status = 'pending'
        WHERE id = ?`
-    ).run(input.question, input.answer, language, now, id);
+    ).run(question, answer, language, now, id);
     return this.getById(id);
   },
 
@@ -167,32 +205,46 @@ export const qaService = {
     }
   },
 
-  async removeVector(id: string): Promise<void> {
-    if (!pineconeService.isConfigured()) return;
+  async removeVector(qa: QAPair): Promise<{ removed: boolean; skipped: boolean; error?: string }> {
+    if (!pineconeService.isConfigured()) {
+      return { removed: false, skipped: true };
+    }
+    const vectorId = qa.pinecone_id ?? qa.id;
+    if (!vectorId) {
+      return { removed: false, skipped: true };
+    }
     try {
-      await pineconeService.deleteVector(id);
+      await pineconeService.deleteVector(vectorId);
+      return { removed: true, skipped: false };
     } catch (error) {
-      console.warn("Failed to remove Pinecone vector", id, error);
+      console.warn("Failed to remove Pinecone vector", vectorId, error);
+      return {
+        removed: false,
+        skipped: false,
+        error: error instanceof Error ? error.message : "Unknown Pinecone error",
+      };
     }
   },
 
   async deleteAll(): Promise<{ deleted: number; vectorFailures: string[] }> {
-    const rows = listIdsStmt.all() as { id: string }[];
-    const ids = rows.map((row) => row.id);
+    const rows = listIdsStmt.all() as { id: string; pinecone_id: string | null }[];
+    const vectorIds = rows
+      .map((row) => row.pinecone_id ?? row.id)
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
     const vectorFailures: string[] = [];
 
-    if (ids.length > 0 && pineconeService.isConfigured()) {
+    if (vectorIds.length > 0 && pineconeService.isConfigured()) {
       try {
-        await pineconeService.deleteVectors(ids);
+        await pineconeService.deleteVectors(vectorIds);
       } catch (error) {
         console.error("Failed to delete Pinecone vectors in bulk", error);
-        vectorFailures.push(...ids);
+        vectorFailures.push(...vectorIds);
       }
     }
 
     const info = db.prepare("DELETE FROM qa_pairs").run();
     return {
-      deleted: typeof info.changes === "number" ? info.changes : ids.length,
+      deleted: typeof info.changes === "number" ? info.changes : rows.length,
       vectorFailures,
     };
   },

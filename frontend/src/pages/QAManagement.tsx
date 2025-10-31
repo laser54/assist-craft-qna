@@ -64,6 +64,13 @@ interface QaListResponse {
   items: QaItem[];
 }
 
+interface DeleteQaResponse {
+  deleted: boolean;
+  vectorRemoved: boolean;
+  vectorSkipped: boolean;
+  vectorError: string | null;
+}
+
 const PAGE_SIZE = 10;
 
 interface ImportProgressState {
@@ -238,19 +245,22 @@ const QAManagement = () => {
 
   const createMutation = useMutation({
     mutationFn: (payload: { question: string; answer: string; language?: string }) =>
-      apiFetch<QaItem>("/qa", {
+      apiFetch<{ item: QaItem | null; replaced: boolean }>("/qa", {
         method: "POST",
         body: JSON.stringify(payload),
       }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setNewQuestion("");
       setNewAnswer("");
       setPage(1);
       invalidateQa();
       await refresh().catch(() => undefined);
+      const replaced = Boolean(result?.replaced);
       toast({
-        title: "Q&A saved",
-        description: "Stored and queued for Pinecone vector sync.",
+        title: replaced ? "Q&A replaced" : "Q&A saved",
+        description: replaced
+          ? "Existing question updated; vector will be refreshed."
+          : "Stored and queued for Pinecone vector sync.",
       });
     },
     onError: (err) => handleMutationError(err, "Could not add the Q&A pair"),
@@ -280,16 +290,31 @@ const QAManagement = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
-      apiFetch<void>(`/qa/${id}`, {
+      apiFetch<DeleteQaResponse>(`/qa/${id}`, {
         method: "DELETE",
-        parseJson: false,
       }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       invalidateQa();
       await refresh().catch(() => undefined);
+      const { vectorRemoved, vectorSkipped, vectorError } = result;
+      let description = "Removed from SQLite and Pinecone.";
+      let variant: "default" | "destructive" = "default";
+
+      if (!vectorRemoved) {
+        if (vectorSkipped) {
+          description = "Deleted locally. Pinecone cleanup was skipped (vector missing or Pinecone disabled).";
+        } else {
+          description = `Deleted locally. Pinecone cleanup failed${
+            vectorError ? `: ${vectorError}` : "."
+          }`;
+          variant = "destructive";
+        }
+      }
+
       toast({
         title: "Q&A deleted",
-        description: "Removed from SQLite and Pinecone.",
+        description,
+        variant,
       });
     },
     onError: (err) => handleMutationError(err, "Unable to delete the record"),

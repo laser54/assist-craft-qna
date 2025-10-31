@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,8 +47,10 @@ const Index = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
   const [pipelineMeta, setPipelineMeta] = useState<SearchPipelineMeta | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
   const { metrics } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const searchMutation = useMutation({
     mutationFn: async (payload: { query: string }) => {
@@ -89,6 +92,7 @@ const Index = () => {
       const searchResults = await searchMutation.mutateAsync({ query });
       setResults(searchResults);
       setShowAllResults(false);
+      setHasSearched(true);
 
       if (searchResults.length === 0) {
         toast({
@@ -110,6 +114,10 @@ const Index = () => {
   const sortedResults = [...results].sort((a, b) => b.score - a.score);
   const topResult = sortedResults[0];
   const otherResults = sortedResults.slice(1);
+  const topScoreZero = Boolean(
+    topResult && (topResult.score <= 0 || topResult.score * 100 < 0.5),
+  );
+  const noResults = hasSearched && !isSearching && (sortedResults.length === 0 || topScoreZero);
 
   return (
     <div className="min-h-screen bg-background">
@@ -124,76 +132,6 @@ const Index = () => {
             Enter a customer query to find the most relevant answer
           </p>
         </div>
-
-        <Card className="border-primary/40 shadow-xl bg-gradient-to-br from-card via-primary/5 to-accent/10">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-2xl text-primary">Почему наш поиск умнее обычного фильтра по словам</CardTitle>
-            <p className="text-muted-foreground text-sm">
-              Мы используем весь стек Pinecone + трансформеры, чтобы понимать смысл вопроса, а не только совпадения по тексту.
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-6 sm:grid-cols-2">
-            <div className="flex gap-3">
-              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
-                1
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 font-semibold">
-                  <Brain className="w-4 h-4 text-primary" />
-                  Нейронные эмбеддинги вместо ключевых слов
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Pinecone Inference превращает вопрос в многомерный вектор. Такой подход улавливает синонимы и намерение клиента, даже если формулировка другая.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
-                2
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 font-semibold">
-                  <Database className="w-4 h-4 text-primary" />
-                  Векторное хранилище Pinecone
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Мы сравниваем эмбеддинг запроса с тысячами ответов за миллисекунды. Алгоритм ищет по смыслу, поэтому не теряет релевантность, даже если нет прямого совпадения.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
-                3
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 font-semibold">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  Трансформерный reranker проверяет нюансы
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Cross-encoder перечитывает топ-ответы и поднимает самый полный и вежливый текст на первое место. Так мы избегаем "шумных" совпадений.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
-                4
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 font-semibold">
-                  <ShieldCheck className="w-4 h-4 text-primary" />
-                  Контроль качества и fallback на каждом шаге
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Метрики показывают, какой индекс и модель сработали. Если rerank недоступен, система автоматически переключится на безопасный векторный порядок.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="shadow-sm">
@@ -250,8 +188,22 @@ const Index = () => {
             </div>
             <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
               <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
-              <p>Ask the exact customer question — Pinecone’s reranker will surface the sharpest answer.</p>
+              <p>Describe the customer intent in plain English — the semantic stack tracks meaning, not just matching words.</p>
             </div>
+            {noResults && (
+              <div className="mt-4 space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-left">
+                <div className="flex items-center gap-2 text-destructive">
+                  <Info className="w-4 h-4" />
+                  <span className="font-semibold">Nothing matched this question yet.</span>
+                </div>
+                <p className="text-muted-foreground">
+                  Rephrase the wording with more context, or save this customer question so the next search succeeds.
+                </p>
+                <Button variant="outline" onClick={() => navigate("/qa-management")} className="w-full sm:w-auto">
+                  Add this Q&A to the knowledge base
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -312,7 +264,7 @@ const Index = () => {
           </TooltipProvider>
         )}
 
-        {topResult && (
+        {topResult && !topScoreZero && !noResults && (
           <Card className="border-primary/50 shadow-xl bg-gradient-to-br from-card to-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -347,7 +299,7 @@ const Index = () => {
           </Card>
         )}
 
-        {otherResults.length > 0 && (
+        {otherResults.length > 0 && !noResults && (
           <Card className="shadow-lg">
             <CardHeader className="pb-3">
               <Button
@@ -393,6 +345,102 @@ const Index = () => {
             )}
           </Card>
         )}
+
+        <Card className="border-primary/40 shadow-xl bg-gradient-to-br from-card via-primary/5 to-accent/10">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-2xl text-primary">Why our semantic search beats keyword filters</CardTitle>
+            <p className="text-muted-foreground text-sm">
+              We run Pinecone plus transformer rerankers to understand intent, not just literal word overlap.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="flex gap-3">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                  1
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Brain className="w-4 h-4 text-primary" />
+                    Neural embeddings instead of raw keywords
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Pinecone Inference converts the query into a rich vector, capturing synonyms and customer intent even when wording differs.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                  2
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Database className="w-4 h-4 text-primary" />
+                    Pinecone vector store
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    We compare the query embedding with thousands of answers in milliseconds, keeping relevance high even without literal matches.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                  3
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Transformer reranker checks the nuance
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    A cross-encoder rereads the top answers and boosts the most complete response, reducing noisy hits.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                  4
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <ShieldCheck className="w-4 h-4 text-primary" />
+                    Quality gates and fallbacks at every step
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Metrics reveal which index and model fired. If rerank is down, we safely fall back to the vector order.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Semantic examples:</p>
+              <div className="space-y-2 rounded-md border border-dashed border-primary/30 p-3 bg-background/70">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="uppercase">You ask</Badge>
+                  <span className="font-semibold text-foreground">“Customer cannot access invoices after plan downgrade”</span>
+                </div>
+                <div className="pl-6 text-xs sm:text-sm flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">We surface</Badge>
+                  <span>“Invoice history permissions & downgrades”</span>
+                </div>
+              </div>
+              <div className="space-y-2 rounded-md border border-dashed border-primary/30 p-3 bg-background/70">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="uppercase">You ask</Badge>
+                  <span className="font-semibold text-foreground">“Shopify orders stopped syncing after API key rotation”</span>
+                </div>
+                <div className="pl-6 text-xs sm:text-sm flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">We surface</Badge>
+                  <span>“Restart the Shopify connector after credential updates”</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -44,14 +44,18 @@ router.post("/", async (req, res, next) => {
       answer: body.answer,
       ...(body.language !== undefined ? { language: body.language } : {}),
     };
-    const qa = qaService.create(createInput);
+    const result = qaService.create(createInput);
     try {
-      await qaService.syncVector(qa);
+      await qaService.syncVector(result.record);
     } catch (error) {
-      console.error("Failed to sync Pinecone for QA", qa.id, error);
+      console.error("Failed to sync Pinecone for QA", result.record.id, error);
     }
-    const fresh = qaService.getById(qa.id);
-    res.status(201).json(fresh);
+    const fresh = qaService.getById(result.record.id);
+    const statusCode = result.replaced ? 200 : 201;
+    res.status(statusCode).json({
+      item: fresh,
+      replaced: result.replaced,
+    });
   } catch (error) {
     next(error);
   }
@@ -92,9 +96,14 @@ router.delete("/:id", async (req, res, next) => {
     if (!existing) {
       throw new HttpError(404, "QA pair not found");
     }
-    await qaService.removeVector(id);
+    const vectorResult = await qaService.removeVector(existing);
     qaService.delete(id);
-    res.status(204).send();
+    res.json({
+      deleted: true,
+      vectorRemoved: vectorResult.removed,
+      vectorSkipped: vectorResult.skipped,
+      vectorError: vectorResult.error ?? null,
+    });
   } catch (error) {
     next(error);
   }

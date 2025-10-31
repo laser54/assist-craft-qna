@@ -45,9 +45,7 @@ export const pineconeService = {
     if (!index) return;
     const scoped = index.namespace(INDEX_NAMESPACE);
     try {
-      await scoped.deleteMany({
-        ids: [id],
-      });
+      await scoped.deleteMany([id]);
     } catch (error) {
       if (isNotFoundError(error)) {
         return;
@@ -63,9 +61,7 @@ export const pineconeService = {
     if (!index) return;
     const scoped = index.namespace(INDEX_NAMESPACE);
     try {
-      await scoped.deleteMany({
-        ids,
-      });
+      await scoped.deleteMany(ids);
     } catch (error) {
       if (isNotFoundError(error)) {
         return;
