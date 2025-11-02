@@ -215,6 +215,38 @@ export const qaService = {
     }
   },
 
+  async syncVectorWithRetry(qa: QAPair, maxAttempts = 3): Promise<void> {
+    let syncAttempts = 0;
+    let syncSuccess = false;
+    const qaId = qa.id;
+    
+    while (syncAttempts < maxAttempts && !syncSuccess) {
+      syncAttempts += 1;
+      try {
+        await this.syncVector(qa);
+        console.log(`[syncVectorWithRetry] Successfully synced QA ${qaId} to Pinecone (attempt ${syncAttempts})`);
+        syncSuccess = true;
+      } catch (error) {
+        console.error(`[syncVectorWithRetry] Failed to sync Pinecone for QA ${qaId} (attempt ${syncAttempts}/${maxAttempts}):`, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[syncVectorWithRetry] Error details:`, errorMessage);
+        
+        if (syncAttempts < maxAttempts) {
+          const delay = syncAttempts * 1000;
+          console.log(`[syncVectorWithRetry] Retrying sync in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          qa = this.getById(qaId)!;
+          if (!qa) {
+            throw new Error(`QA ${qaId} not found after retry delay`);
+          }
+        } else {
+          console.error(`[syncVectorWithRetry] All ${maxAttempts} sync attempts failed for QA ${qaId}`);
+          throw error;
+        }
+      }
+    }
+  },
+
   async removeVector(qa: QAPair): Promise<{ removed: boolean; skipped: boolean; error?: string }> {
     if (!pineconeService.isConfigured()) {
       return { removed: false, skipped: true };
@@ -279,7 +311,7 @@ export const qaService = {
 
     for (const qa of allQa) {
       try {
-        await this.syncVector(qa);
+        await this.syncVectorWithRetry(qa);
         synced += 1;
         if (synced % 10 === 0) {
           console.log(`[resyncAll] Progress: ${synced}/${total} synced`);

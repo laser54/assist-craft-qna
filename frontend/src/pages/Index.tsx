@@ -16,6 +16,7 @@ interface SearchMatch {
   id: string;
   score: number;
   vectorScore: number;
+  rerankScore?: number | null;
   question: string;
   answer: string;
   language: string;
@@ -56,9 +57,13 @@ const isLowScore = (score: number): boolean => score < LOW_SCORE_THRESHOLD;
 const Index = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchMatch[]>([]);
+  const [vectorResults, setVectorResults] = useState<SearchMatch[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAllResults, setShowAllResults] = useState(false);
+  const [showVectorResults, setShowVectorResults] = useState(false);
   const [pipelineMeta, setPipelineMeta] = useState<SearchPipelineMeta | null>(null);
+  const [rerankerRejected, setRerankerRejected] = useState(false);
+  const [topRerankScore, setTopRerankScore] = useState<number | undefined>(undefined);
   const [hasSearched, setHasSearched] = useState(false);
   const { metrics } = useAuth();
   const { toast } = useToast();
@@ -67,9 +72,13 @@ const Index = () => {
   const searchMutation = useMutation({
     mutationFn: async (payload: { query: string }) => {
       const params = new URLSearchParams({ query: payload.query });
-      const response = await apiFetch<{ matches: SearchMatch[]; pipeline?: SearchPipelineMeta }>(
-        `/search?${params.toString()}`,
-      );
+      const response = await apiFetch<{
+        matches: SearchMatch[];
+        vectorMatches?: SearchMatch[];
+        rerankerRejected?: boolean;
+        topRerankScore?: number;
+        pipeline?: SearchPipelineMeta;
+      }>(`/search?${params.toString()}`);
       const meta = response.pipeline;
       if (meta) {
         setPipelineMeta({
@@ -93,6 +102,13 @@ const Index = () => {
       } else {
         setPipelineMeta(null);
       }
+      setRerankerRejected(response.rerankerRejected ?? false);
+      setTopRerankScore(response.topRerankScore);
+      if (response.vectorMatches) {
+        setVectorResults(response.vectorMatches);
+      } else {
+        setVectorResults([]);
+      }
       return response.matches ?? [];
     },
   });
@@ -109,13 +125,14 @@ const Index = () => {
 
     setPipelineMeta(null);
     setIsSearching(true);
+    setShowVectorResults(false);
     try {
       const searchResults = await searchMutation.mutateAsync({ query });
       setResults(searchResults);
       setShowAllResults(false);
       setHasSearched(true);
 
-      if (searchResults.length === 0) {
+      if (searchResults.length === 0 && !rerankerRejected) {
         toast({
           title: "No matches",
           description: "Nothing relevant surfaced. Refine the question and try again.",
@@ -136,7 +153,7 @@ const Index = () => {
   const topResult = sortedResults[0];
   const otherResults = sortedResults.slice(1);
   const topResultLowScore = Boolean(topResult && isLowScore(topResult.score));
-  const noResults = hasSearched && !isSearching && sortedResults.length === 0;
+  const noResults = hasSearched && !isSearching && sortedResults.length === 0 && !rerankerRejected;
 
   return (
     <div className="min-h-screen bg-background">
@@ -209,7 +226,45 @@ const Index = () => {
               <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
               <p>Describe the customer intent in plain English — the semantic stack tracks meaning, not just matching words.</p>
             </div>
-            {noResults && (
+            {rerankerRejected && (
+              <div className="mt-4 space-y-3 rounded-md border border-amber-400/60 bg-amber-500/10 p-4 text-sm text-left">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <Brain className="w-4 h-4" />
+                  <span className="font-semibold">Reranker found no relevant answer</span>
+                </div>
+                <p className="text-muted-foreground">
+                  The semantic reranker analyzed your query and determined that none of the found documents are relevant enough to answer your question.
+                  {topRerankScore !== undefined && (
+                    <span className="block mt-1">Top rerank score: {(topRerankScore * 100).toFixed(2)}% (threshold: 1%)</span>
+                  )}
+                </p>
+                {vectorResults.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground">
+                      However, vector search found {vectorResults.length} potentially related result{vectorResults.length !== 1 ? "s" : ""}. You can review them below.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowVectorResults(!showVectorResults)}
+                      className="w-full sm:w-auto"
+                    >
+                      {showVectorResults ? (
+                        <>
+                          <ChevronUp className="w-4 h-4 mr-2" />
+                          Hide vector search results
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-4 h-4 mr-2" />
+                          Show vector search results ({vectorResults.length})
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            {noResults && !rerankerRejected && (
               <div className="mt-4 space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-left">
                 <div className="flex items-center gap-2 text-destructive">
                   <Info className="w-4 h-4" />
@@ -408,6 +463,53 @@ const Index = () => {
                 ))}
               </CardContent>
             )}
+          </Card>
+        )}
+
+        {showVectorResults && rerankerRejected && vectorResults.length > 0 && (
+          <Card className="shadow-lg border-amber-400/30">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-amber-600" />
+                <span className="text-lg font-semibold">Vector Search Results ({vectorResults.length})</span>
+                <Badge variant="outline" className="gap-1">
+                  <Database className="w-3 h-3" />
+                  Vector order
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                These results were found by vector similarity search but were rejected by the reranker as not relevant enough.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {vectorResults.map((result, idx) => (
+                <div key={result.id} className="p-4 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-semibold text-primary">#{idx + 1}</span>
+                    <span
+                      className={`text-sm px-2 py-0.5 rounded-full text-primary-foreground ${scoreToColor(
+                        result.vectorScore,
+                      )}`}
+                    >
+                      {(result.vectorScore * 100).toFixed(1)}% vector match
+                    </span>
+                  </div>
+                  <p className="font-medium mb-2">{result.question}</p>
+                  {isLowScore(result.vectorScore) ? (
+                    <p className="text-xs text-amber-700/90">
+                      Vector match confidence {(result.vectorScore * 100).toFixed(1)}%. This result was rejected by the reranker.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
+                      <p className="text-xs text-amber-700/90">
+                        Note: The reranker determined this is not relevant enough to answer your query.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
           </Card>
         )}
 

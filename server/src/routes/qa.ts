@@ -48,30 +48,12 @@ router.post("/", async (req, res, next) => {
     const result = qaService.create(createInput);
     console.log(`[POST /qa] Created QA ${result.record.id}, replaced: ${result.replaced}, question="${result.record.question.substring(0, 50)}..."`);
     
-    let syncAttempts = 0;
-    const maxSyncAttempts = 3;
-    let syncSuccess = false;
-    
-    while (syncAttempts < maxSyncAttempts && !syncSuccess) {
-      syncAttempts += 1;
-      try {
-        await qaService.syncVector(result.record);
-        console.log(`[POST /qa] Successfully synced QA ${result.record.id} to Pinecone (attempt ${syncAttempts})`);
-        syncSuccess = true;
-      } catch (error) {
-        console.error(`[POST /qa] Failed to sync Pinecone for QA ${result.record.id} (attempt ${syncAttempts}/${maxSyncAttempts}):`, error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[POST /qa] Error details:`, errorMessage);
-        
-        if (syncAttempts < maxSyncAttempts) {
-          const delay = syncAttempts * 1000;
-          console.log(`[POST /qa] Retrying sync in ${delay}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        } else {
-          console.error(`[POST /qa] All ${maxSyncAttempts} sync attempts failed for QA ${result.record.id}`);
-        }
-      }
+    try {
+      await qaService.syncVectorWithRetry(result.record);
+    } catch (error) {
+      console.error(`[POST /qa] Failed to sync Pinecone for QA ${result.record.id} after all retries:`, error);
     }
+    
     const fresh = qaService.getById(result.record.id);
     console.log(`[POST /qa] Returning QA ${fresh?.id}, embedding_status=${fresh?.embedding_status}, pinecone_id=${fresh?.pinecone_id ?? "null"}`);
     const statusCode = result.replaced ? 200 : 201;
@@ -102,7 +84,7 @@ router.put("/:id", async (req, res, next) => {
       throw new HttpError(404, "QA pair not found");
     }
     try {
-      await qaService.syncVector(updated);
+      await qaService.syncVectorWithRetry(updated);
     } catch (error) {
       console.error("Failed to re-sync Pinecone for QA", id, error);
     }

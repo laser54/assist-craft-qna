@@ -27,7 +27,7 @@ export const embeddingService = {
     return env.pineconeConfigured && Boolean(env.PINECONE_EMBED_MODEL);
   },
 
-  async embed(text: string): Promise<EmbedResult> {
+  async embed(text: string, inputType?: "query" | "passage" | "document"): Promise<EmbedResult> {
     if (!this.isConfigured()) {
       return {
         embedding: fakeEmbedding(text),
@@ -41,8 +41,9 @@ export const embeddingService = {
       throw new Error("Pinecone client not initialised");
     }
 
+    const finalInputType = inputType ?? env.PINECONE_EMBED_INPUT_TYPE ?? "passage";
     const response = await inference.embed(env.PINECONE_EMBED_MODEL!, [text], {
-      inputType: env.PINECONE_EMBED_INPUT_TYPE ?? "passage",
+      inputType: finalInputType,
     });
 
     const first = response.data?.[0];

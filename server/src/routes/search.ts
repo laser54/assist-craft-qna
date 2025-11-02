@@ -11,7 +11,7 @@ const router = Router();
 
 const searchSchema = z.object({
   query: z.string().trim().min(1, "Query is required"),
-  topK: z.coerce.number().int().positive().max(20).default(5),
+  topK: z.coerce.number().int().positive().max(20).default(10),
 });
 
 const toUsageDetails = (snapshot: RerankUsageAggregate, lastCallUnits = 0): RerankUsageDetails => ({
@@ -30,27 +30,14 @@ router.get("/", async (req, res, next) => {
     console.log(`[Search] Query: "${query}", topK: ${topK}`);
     console.log(`[Search] Using index: ${env.PINECONE_INDEX}, namespace: qa`);
     
-    const embeddingResult = await embeddingService.embed(query);
-    console.log(`[Search] Embedding model: ${embeddingResult.model}, dimension: ${embeddingResult.dimension}`);
+    const embeddingResult = await embeddingService.embed(query, "query");
+    console.log(`[Search] Embedding model: ${embeddingResult.model}, dimension: ${embeddingResult.dimension}, inputType: query`);
     
-    let matches = await pineconeService.query({
+    const matches = await pineconeService.query({
       vector: embeddingResult.embedding,
       topK,
       namespace: "qa",
     });
-    
-    if (matches.length === 0 || matches[0]?.score && matches[0].score < 0.3) {
-      console.log(`[Search] No good matches in namespace "qa", trying default namespace ""`);
-      const defaultMatches = await pineconeService.query({
-        vector: embeddingResult.embedding,
-        topK,
-        namespace: "",
-      });
-      if (defaultMatches.length > 0 && defaultMatches[0]?.score && defaultMatches[0].score > (matches[0]?.score ?? 0)) {
-        console.log(`[Search] Found better matches in default namespace, top score: ${defaultMatches[0].score}`);
-        matches = defaultMatches;
-      }
-    }
 
     console.log(`[Search] Pinecone returned ${matches.length} matches`);
     matches.forEach((match, idx) => {
@@ -109,11 +96,8 @@ router.get("/", async (req, res, next) => {
     const candidatesWithoutMetadata = candidates.filter((c) => !c.hasMetadata);
     console.log(`[Search] Found ${candidates.length} candidates: ${candidatesWithMetadata.length} with metadata, ${candidatesWithoutMetadata.length} without metadata`);
     
-    if (candidatesWithMetadata.length > 0) {
-      console.log(`[Search] Using ${candidatesWithMetadata.length} candidates with metadata, filtering out ${candidatesWithoutMetadata.length} without metadata`);
-      candidates.splice(0, candidates.length, ...candidatesWithMetadata);
-    } else if (candidatesWithoutMetadata.length > 0) {
-      console.warn(`[Search] WARNING: No candidates with metadata found! Using ${candidatesWithoutMetadata.length} candidates without metadata (from SQLite fallback). Consider running /api/qa/resync to fix this.`);
+    if (candidatesWithoutMetadata.length > 0) {
+      console.warn(`[Search] WARNING: ${candidatesWithoutMetadata.length} candidates without metadata found (using SQLite fallback). Consider running /api/qa/resync to fix this.`);
     }
 
     console.log(`[Search] Formed ${candidates.length} candidates from ${matches.length} matches`);
@@ -138,6 +122,26 @@ router.get("/", async (req, res, next) => {
 
     const candidateById = new Map(candidates.map((c) => [c.id, c]));
     let rerankedResults: { id: string; score: number }[] = [];
+    let rerankerRejected = false;
+    let topRerankScore = 0;
+
+    const vectorResults: Array<{
+      id: string;
+      score: number;
+      vectorScore: number;
+      rerankScore: number | null;
+      question: string;
+      answer: string;
+      language: string;
+    }> = candidates.map((candidate) => ({
+      id: candidate.qa.id,
+      score: candidate.baseScore,
+      vectorScore: candidate.baseScore,
+      rerankScore: null,
+      question: candidate.qa.question,
+      answer: candidate.qa.answer,
+      language: candidate.qa.language,
+    }));
 
     if (rerankService.isConfigured() && candidates.length > 0) {
       try {
@@ -152,13 +156,13 @@ router.get("/", async (req, res, next) => {
         pipeline.rerank.usage = rerankOutcome.usage ?? pipeline.rerank.usage;
         
         if (rerankOutcome.results.length > 0) {
-          const topRerankScore = rerankOutcome.results[0]?.score ?? 0;
-          const topVectorScore = candidates[0]?.baseScore ?? 0;
+          topRerankScore = rerankOutcome.results[0]?.score ?? 0;
           
           if (topRerankScore < 0.01) {
-            console.warn(`[Search] Rerank top score ${topRerankScore} too low (< 0.01), ignoring rerank and using vector scores`);
+            console.warn(`[Search] Rerank top score ${topRerankScore} too low (< 0.01), reranker indicates no relevant answer found`);
             pipeline.rerank.applied = false;
-            pipeline.rerank.fallbackReason = `Rerank score ${topRerankScore} too low, using vector scores`;
+            rerankerRejected = true;
+            pipeline.rerank.fallbackReason = `Reranker found no relevant answer (top score: ${topRerankScore.toFixed(6)})`;
           } else {
             rerankedResults = rerankOutcome.results;
             pipeline.rerank.applied = true;
@@ -205,26 +209,18 @@ router.get("/", async (req, res, next) => {
           language: candidate.qa.language,
         });
       }
-    } else {
-      for (const candidate of candidates) {
-        results.push({
-          id: candidate.qa.id,
-          score: candidate.baseScore,
-          vectorScore: candidate.baseScore,
-          rerankScore: null,
-          question: candidate.qa.question,
-          answer: candidate.qa.answer,
-          language: candidate.qa.language,
-        });
-      }
     }
 
     const finalResults = results.slice(0, topK);
+    const finalVectorResults = vectorResults.slice(0, topK);
 
     res.json({
       query,
       topK,
-      matches: finalResults,
+      matches: rerankerRejected ? [] : finalResults,
+      vectorMatches: rerankerRejected ? finalVectorResults : undefined,
+      rerankerRejected,
+      topRerankScore: rerankerRejected ? topRerankScore : undefined,
       pipeline,
     });
   } catch (error) {

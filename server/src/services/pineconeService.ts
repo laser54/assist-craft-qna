@@ -78,6 +78,8 @@ export const pineconeService = {
     const params: QueryOptions = {
       vector,
       topK,
+      includeMetadata: true,
+      includeValues: false,
     };
     const result = await scopedIndex.query(params);
     return result.matches ?? [];
