@@ -34,7 +34,6 @@ import {
   Edit,
   Trash2,
   Trash,
-  RefreshCw,
   Search,
   Database,
   Clock,
@@ -249,7 +248,6 @@ const QAManagement = () => {
   const [editLanguage, setEditLanguage] = useState("ru");
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isResyncing, setIsResyncing] = useState(false);
   const [importProgress, setImportProgress] = useState<ImportProgressState | null>(null);
   const [importSheetName, setImportSheetName] = useState<string | null>(null);
 
@@ -658,37 +656,6 @@ const QAManagement = () => {
     }
   };
 
-  const handleResync = async () => {
-    if (!confirm("Пересинхронизировать все векторы в Pinecone? Это очистит namespace 'qa' и заново синхронизирует все записи из SQLite. Продолжить?")) {
-      return;
-    }
-
-    setIsResyncing(true);
-    try {
-      const result = await apiFetch<{ total: number; synced: number; failed: number; errors: string[] }>("/qa/resync", {
-        method: "POST",
-      });
-
-      toast({
-        title: "Пересинхронизация завершена",
-        description: `Синхронизировано: ${result.synced} из ${result.total}${result.failed > 0 ? `. Ошибок: ${result.failed}` : ""}`,
-        variant: result.failed > 0 ? "destructive" : "default",
-      });
-
-      invalidateQa();
-      await refresh().catch(() => undefined);
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Не удалось пересинхронизировать";
-      toast({
-        title: "Пересинхронизация не удалась",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsResyncing(false);
-    }
-  };
-
   const appliedItems = data?.items ?? [];
   const pendingId = deleteMutation.variables ?? null;
 
@@ -722,19 +689,6 @@ const QAManagement = () => {
                   onChange={handleFileUpload}
                 />
               </label>
-            </Button>
-            <Button variant="outline" onClick={() => invalidateQa()} className="gap-2" disabled={isProcessing}>
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleResync}
-              className="gap-2"
-              disabled={isResyncing || isProcessing || isImporting}
-            >
-              {isResyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-              Resync Pinecone
             </Button>
             <Button
               variant="destructive"

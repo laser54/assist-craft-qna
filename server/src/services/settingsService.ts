@@ -6,6 +6,7 @@ export interface AppSettings {
   similarityThreshold: number;
   model: string;
   rerankModel: string | null;
+  rerankEnabled: boolean;
   csvBatchSize: number;
 }
 
@@ -16,6 +17,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   similarityThreshold: 0.3,
   model: env.PINECONE_EMBED_MODEL ?? "mixedbread-ai/mxbai-embed-xsmall-v1",
   rerankModel: env.PINECONE_RERANK_MODEL ?? null,
+  rerankEnabled: true,
   csvBatchSize: env.CSV_BATCH_SIZE,
 };
 
@@ -47,7 +49,7 @@ const parseSettings = (raw: string | null): Partial<AppSettings> => {
   return {};
 };
 
-export type UpdateSettingsInput = Partial<Pick<AppSettings, "topResultsCount" | "similarityThreshold" | "model" | "rerankModel" | "csvBatchSize">>;
+export type UpdateSettingsInput = Partial<Pick<AppSettings, "topResultsCount" | "similarityThreshold" | "model" | "rerankModel" | "rerankEnabled" | "csvBatchSize">>;
 
 const clampNumber = (value: number, min: number, max: number): number => {
   if (Number.isNaN(value)) return min;
@@ -60,6 +62,7 @@ const normalise = (settings: AppSettings): AppSettings => {
     similarityThreshold: clampNumber(settings.similarityThreshold, 0, 1),
     model: settings.model.trim(),
     rerankModel: settings.rerankModel ? settings.rerankModel.trim() : null,
+    rerankEnabled: Boolean(settings.rerankEnabled),
     csvBatchSize: clampNumber(settings.csvBatchSize, 1, 500),
   };
 };

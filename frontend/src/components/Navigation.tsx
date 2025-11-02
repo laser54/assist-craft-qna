@@ -1,28 +1,16 @@
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Home, FileText, Settings, Zap } from "lucide-react";
+import { Home, FileText, Settings, Menu } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 export const Navigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { metrics } = useAuth();
-  const rerankUsage = metrics?.rerankUsage;
-  const limit = rerankUsage?.limit ?? null;
-  const remaining = rerankUsage?.remaining ?? null;
-  const unitsUsed = rerankUsage?.unitsUsed ?? null;
-
-  const badgeVariant: "secondary" | "destructive" =
-    remaining == null || limit == null
-      ? "secondary"
-      : remaining <= Math.max(5, Math.ceil(limit * 0.1))
-        ? "destructive"
-        : "secondary";
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { path: "/", label: "Search", icon: Home },
@@ -30,16 +18,28 @@ export const Navigation = () => {
     { path: "/settings", label: "Settings", icon: Settings },
   ];
 
+  const handleNavClick = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+  };
+
   return (
-    <nav className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <nav className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16 gap-4">
-          <div className="flex items-center cursor-pointer" onClick={() => navigate("/")}>
+          <div 
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" 
+            onClick={() => handleNavClick("/")}
+          >
             <Logo size="md" />
+            <span className="hidden sm:inline-block text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Support Assistant
+            </span>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -48,46 +48,72 @@ export const Navigation = () => {
                   <Button
                     key={item.path}
                     variant={isActive ? "default" : "ghost"}
-                    onClick={() => navigate(item.path)}
-                    className={cn("gap-2", isActive && "bg-primary text-primary-foreground")}
+                    onClick={() => handleNavClick(item.path)}
+                    className={cn(
+                      "gap-2 transition-all",
+                      isActive 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "hover:bg-muted/50"
+                    )}
                   >
                     <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{item.label}</span>
+                    <span>{item.label}</span>
                   </Button>
                 );
               })}
             </div>
 
-            {rerankUsage ? (
-              <div className="flex items-center gap-2 min-w-[140px]">
-                <Badge
-                  variant={badgeVariant}
-                  className="flex items-center gap-1 px-2 py-0.5 text-[11px]"
-                  title={
-                    limit != null
-                      ? `${unitsUsed ?? 0} of ${limit} rerank credits used today`
-                      : `${unitsUsed ?? 0} rerank credits used today`
-                  }
-                >
-                  <Zap className="h-3.5 w-3.5" />
-                  <span>
-                    {limit != null
-                      ? `${remaining ?? 0}/${limit} left`
-                      : `${unitsUsed ?? 0} used`}
-                  </span>
-                </Badge>
-                {limit != null ? (
-                  <Progress
-                    value={Math.min(100, Math.round(((limit - (remaining ?? 0)) / limit) * 100))}
-                    className="h-1.5 w-16"
-                  />
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="ml-2 pl-2 border-l">
+            {/* Theme Toggle */}
+            <div className="hidden sm:block ml-2 pl-2 border-l">
               <ThemeToggle />
             </div>
+
+            {/* Mobile Menu */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild className="md:hidden">
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px] sm:w-[320px]">
+                <div className="flex flex-col gap-4 mt-6">
+                  <div className="flex items-center gap-2 pb-4 border-b">
+                    <Logo size="md" />
+                    <span className="text-lg font-semibold">Support Assistant</span>
+                  </div>
+                  
+                  <nav className="flex flex-col gap-2">
+                    {navItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = location.pathname === item.path;
+
+                      return (
+                        <Button
+                          key={item.path}
+                          variant={isActive ? "default" : "ghost"}
+                          onClick={() => handleNavClick(item.path)}
+                          className={cn(
+                            "justify-start gap-3 w-full",
+                            isActive && "bg-primary text-primary-foreground"
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span>{item.label}</span>
+                        </Button>
+                      );
+                    })}
+                  </nav>
+
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Theme</span>
+                      <ThemeToggle />
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { qaService } from "../services/qaService";
 import { pineconeService } from "../services/pineconeService";
 import { embeddingService } from "../services/embeddingService";
 import { rerankService, type RerankUsageDetails, type RerankUsageAggregate } from "../services/rerankService";
+import { settingsService } from "../services/settingsService";
 import { env } from "../lib/env";
 
 const router = Router();
@@ -105,6 +106,9 @@ router.get("/", async (req, res, next) => {
       console.log(`[Search] Candidate ${idx + 1}: ID=${candidate.id}, score=${candidate.baseScore.toFixed(6)}, question="${candidate.qa.question.substring(0, 50)}..."`);
     });
 
+    const settings = settingsService.get();
+    const rerankEnabled = settings.rerankEnabled && rerankService.isConfigured();
+
     const pipeline = {
       vector: {
         index: env.PINECONE_INDEX ?? null,
@@ -114,7 +118,7 @@ router.get("/", async (req, res, next) => {
       rerank: {
         model: null as string | null,
         applied: false,
-        fallbackReason: rerankService.isConfigured() ? null : "Rerank model is not configured",
+        fallbackReason: rerankEnabled ? null : settings.rerankEnabled ? "Rerank model is not configured" : "Reranker is disabled in settings",
         attemptedModels: rerankService.isConfigured() ? rerankService.candidateModels() : [],
         usage: toUsageDetails(rerankService.getUsageSummary()),
       },
@@ -143,7 +147,7 @@ router.get("/", async (req, res, next) => {
       language: candidate.qa.language,
     }));
 
-    if (rerankService.isConfigured() && candidates.length > 0) {
+    if (rerankEnabled && candidates.length > 0) {
       try {
         const rerankCandidates = candidates.map((candidate) => ({ id: candidate.id, text: candidate.text }));
         console.log(`[Search] Sending ${rerankCandidates.length} candidates to rerank in Pinecone order, top vector score: ${candidates[0]?.baseScore ?? 0}`);

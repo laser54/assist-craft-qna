@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
-import { Loader2, RefreshCcw } from "lucide-react";
+import { Loader2, Sparkles, Brain } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 
 interface BackendSettings {
@@ -14,6 +15,7 @@ interface BackendSettings {
   similarityThreshold: number;
   model: string;
   rerankModel: string | null;
+  rerankEnabled: boolean;
   csvBatchSize: number;
 }
 
@@ -26,7 +28,7 @@ const fetchSettings = async (): Promise<SettingsResponse> => {
   return apiFetch<SettingsResponse>("/settings");
 };
 
-const saveSettings = async (payload: BackendSettings): Promise<SettingsResponse> => {
+const saveSettings = async (payload: Partial<BackendSettings>): Promise<SettingsResponse> => {
   return apiFetch<SettingsResponse>("/settings", {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -78,11 +80,7 @@ const SettingsPage = () => {
     event.preventDefault();
     if (!form) return;
     mutation.mutate({
-      topResultsCount: form.topResultsCount,
-      similarityThreshold: form.similarityThreshold,
-      model: form.model,
-      rerankModel: form.rerankModel,
-      csvBatchSize: form.csvBatchSize,
+      rerankEnabled: form.rerankEnabled,
     });
   };
 
@@ -94,7 +92,7 @@ const SettingsPage = () => {
 
   const isDirty = useMemo(() => {
     if (!data?.settings || !form) return false;
-    return JSON.stringify(data.settings) !== JSON.stringify(form);
+    return data.settings.rerankEnabled !== form.rerankEnabled;
   }, [data, form]);
 
   const isBusy = mutation.isPending || isLoading;
@@ -104,13 +102,18 @@ const SettingsPage = () => {
       <Navigation />
 
       <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-8">
-        <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Settings
-        </h1>
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent leading-tight">
+            Settings
+          </h1>
+          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+            Configure AI models and search behavior
+          </p>
+        </div>
 
         <Card className="border-primary/20 shadow-lg">
           <CardHeader className="space-y-2">
-            <CardTitle className="text-primary">Search & Ingest</CardTitle>
+            <CardTitle className="text-primary leading-tight">AI Configuration</CardTitle>
             {error && (
               <div className="text-sm text-destructive">
                 {(error as Error).message}
@@ -125,77 +128,65 @@ const SettingsPage = () => {
               </div>
             ) : (
               <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="top-results">Number of Top Results</Label>
-                    <Input
-                      id="top-results"
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={form.topResultsCount}
-                      onChange={(e) => handleNumberChange("topResultsCount", e.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">How many vector matches to pull from Pinecone (1-50).</p>
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 pb-2 border-b">
+                      <Brain className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">AI Models</h3>
+                    </div>
+                    
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="embedding-model" className="text-sm font-medium">Embedding Model</Label>
+                        <div className="relative">
+                          <Input 
+                            id="embedding-model" 
+                            value={form.model} 
+                            readOnly 
+                            className="bg-muted/50 text-muted-foreground pr-10" 
+                          />
+                          <Brain className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Configured via environment variables</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="rerank-model" className="text-sm font-medium">Rerank Model</Label>
+                        <div className="relative">
+                          <Input 
+                            id="rerank-model" 
+                            value={form.rerankModel ?? "Not configured"} 
+                            readOnly 
+                            className="bg-muted/50 text-muted-foreground pr-10" 
+                          />
+                          <Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Configured via environment variables</p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="threshold">Similarity Threshold</Label>
-                    <Input
-                      id="threshold"
-                      type="number"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={form.similarityThreshold}
-                      onChange={(e) => handleNumberChange("similarityThreshold", e.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">Minimum cosine similarity required before showing a hit.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="csv-batch">CSV Batch Size</Label>
-                    <Input
-                      id="csv-batch"
-                      type="number"
-                      min={1}
-                      max={500}
-                      value={form.csvBatchSize}
-                      onChange={(e) => handleNumberChange("csvBatchSize", e.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">Rows to process per CSV import batch.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Embedding Model</Label>
-                    <Input value={form.model} readOnly className="bg-muted text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">Populated from env / Pinecone; editing is locked in UI.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Rerank Model</Label>
-                    <Input value={form.rerankModel ?? "—"} readOnly className="bg-muted text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">Update env vars to switch rerank models.</p>
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                      <div className="space-y-0.5 flex-1">
+                        <Label htmlFor="rerank-enabled" className="text-base font-medium cursor-pointer">
+                          Enable Reranker
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Use semantic reranking to improve search result quality
+                        </p>
+                      </div>
+                      <Switch
+                        id="rerank-enabled"
+                        checked={form.rerankEnabled}
+                        onCheckedChange={(checked) => setForm((prev) => prev ? { ...prev, rerankEnabled: checked } : null)}
+                        disabled={isBusy}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-3 justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      refetch();
-                      toast({
-                        title: "Syncing",
-                        description: "Pulling the latest settings from the server.",
-                      });
-                    }}
-                    disabled={isBusy}
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCcw className="h-4 w-4" />
-                    Sync
-                  </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-3 justify-end pt-4 border-t">
                   <Button
                     type="button"
                     variant="ghost"
@@ -204,9 +195,9 @@ const SettingsPage = () => {
                   >
                     Reset
                   </Button>
-                  <Button type="submit" disabled={!isDirty || mutation.isPending} className="gap-2">
+                  <Button type="submit" disabled={!isDirty || mutation.isPending} className="gap-2 min-w-[120px]">
                     {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Save Settings
+                    Save Changes
                   </Button>
                 </div>
               </form>
@@ -214,17 +205,6 @@ const SettingsPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-primary/20 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-primary">About</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground leading-relaxed">
-              Pinecone configuration comes from server env. Use this screen for SQLite-backed knobs (search limits and CSV
-              batch size). Model parameters stay managed via env or the Pinecone dashboard.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

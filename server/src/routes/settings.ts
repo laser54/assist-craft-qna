@@ -29,6 +29,7 @@ router.put("/", (req, res, next) => {
       ...(body.similarityThreshold !== undefined ? { similarityThreshold: body.similarityThreshold } : {}),
       ...(body.model !== undefined ? { model: body.model } : {}),
       ...(body.rerankModel !== undefined ? { rerankModel: body.rerankModel } : {}),
+      ...(body.rerankEnabled !== undefined ? { rerankEnabled: body.rerankEnabled } : {}),
       ...(body.csvBatchSize !== undefined ? { csvBatchSize: body.csvBatchSize } : {}),
     });
     res.json({ ok: true, settings: updated });

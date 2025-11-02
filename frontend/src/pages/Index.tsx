@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck, Zap } from "lucide-react";
+import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck, Zap, MessageSquare, Network } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -161,37 +161,80 @@ const Index = () => {
 
       <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
         <div className="text-center space-y-3 pt-8">
-          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent leading-tight">
             Support Operator Assistant
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg leading-relaxed">
             Enter a customer query to find the most relevant answer
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Card className="shadow-sm">
-            <CardContent className="py-4">
-              <p className="text-xs uppercase text-muted-foreground">Total Q&A</p>
-              <p className="text-2xl font-semibold">{metrics?.totalQa ?? "—"}</p>
+          <Card className="shadow-sm border-primary/20 hover:shadow-md transition-shadow">
+            <CardContent className="py-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs uppercase text-muted-foreground font-medium leading-tight">Total Q&A</p>
+                  <p className="text-2xl font-semibold mt-1 leading-tight">{metrics?.totalQa ?? "—"}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm">
-            <CardContent className="py-4">
-              <p className="text-xs uppercase text-muted-foreground">Vectors in Pinecone</p>
-              <p className="text-2xl font-semibold">{metrics?.pineconeVectors ?? "—"}</p>
+          <Card className="shadow-sm border-primary/20 hover:shadow-md transition-shadow">
+            <CardContent className="py-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Network className="h-5 w-5 text-accent" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs uppercase text-muted-foreground font-medium leading-tight">Vectors in Pinecone</p>
+                  <p className="text-2xl font-semibold mt-1 leading-tight">{metrics?.pineconeVectors ?? "—"}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm">
-            <CardContent className="py-4">
-              <p className="text-xs uppercase text-muted-foreground">AI Pipeline</p>
-              <p className="text-sm text-muted-foreground">
-                {pipelineMeta
-                  ? pipelineMeta.rerank.applied
-                    ? `Reranked via ${pipelineMeta.rerank.model ?? "Pinecone Rerank"}`
-                    : pipelineMeta.rerank.fallbackReason ?? "Vector order (fallback)"
-                  : "Vector search ready; reranker will trigger automatically"}
-              </p>
+          <Card className="shadow-sm border-primary/20 hover:shadow-md transition-shadow">
+            <CardContent className="py-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                  {pipelineMeta?.rerank?.applied ? (
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Database className="h-5 w-5 text-primary" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs uppercase text-muted-foreground font-medium leading-tight mb-1">AI Pipeline</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {pipelineMeta ? (
+                      pipelineMeta.rerank.applied ? (
+                        <>
+                          <Badge variant="default" className="text-xs px-2 py-0.5">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Reranked
+                          </Badge>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {pipelineMeta.rerank.model ?? "Pinecone"}
+                          </span>
+                        </>
+                      ) : (
+                        <Badge variant="outline" className="text-xs px-2 py-0.5">
+                          <Database className="h-3 w-3 mr-1" />
+                          Vector
+                        </Badge>
+                      )
+                    ) : (
+                      <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                        <Zap className="h-3 w-3 mr-1" />
+                        Ready
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -314,35 +357,6 @@ const Index = () => {
                   </div>
                 </TooltipContent>
               </Tooltip>
-              {pipelineMeta.rerank.usage ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className="gap-1 whitespace-nowrap cursor-help">
-                      <Zap className="w-3.5 h-3.5" />
-                      {pipelineMeta.rerank.usage.limit != null
-                        ? `${pipelineMeta.rerank.usage.remaining ?? 0}/${pipelineMeta.rerank.usage.limit} credits`
-                        : `${pipelineMeta.rerank.usage.unitsUsed} credits used`}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="space-y-1 text-sm">
-                      <p>Date: {pipelineMeta.rerank.usage.date}</p>
-                      <p>Used today: {pipelineMeta.rerank.usage.unitsUsed}</p>
-                      {pipelineMeta.rerank.usage.limit != null ? (
-                        <p>Remaining: {pipelineMeta.rerank.usage.remaining ?? 0}</p>
-                      ) : (
-                        <p className="text-muted-foreground">No daily limit configured.</p>
-                      )}
-                      {pipelineMeta.rerank.usage.lastCallUnits > 0 ? (
-                        <p className="text-muted-foreground">
-                          Last call consumed {pipelineMeta.rerank.usage.lastCallUnits} unit
-                          {pipelineMeta.rerank.usage.lastCallUnits === 1 ? "" : "s"}.
-                        </p>
-                      ) : null}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
               {pipelineMeta.rerank.fallbackReason && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -394,18 +408,17 @@ const Index = () => {
                 <p className="font-semibold text-sm text-muted-foreground mb-2">Question:</p>
                 <p className="text-lg">{topResult.question}</p>
               </div>
-              {topResultLowScore ? (
+              <div className="p-4 rounded-lg bg-primary/5">
+                <p className="font-semibold text-sm text-primary mb-2">Answer:</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{topResult.answer}</p>
+              </div>
+              {topResultLowScore && (
                 <div className="p-4 rounded-lg border border-amber-400/60 bg-amber-500/10 text-sm space-y-2">
                   <p className="font-semibold text-amber-700">Low confidence match</p>
                   <p className="text-amber-800/90">
                     This answer scored {(topResult.score * 100).toFixed(1)}%. Refine the query or add
                     a dedicated Q&A entry before trusting it.
                   </p>
-                </div>
-              ) : (
-                <div className="p-4 rounded-lg bg-primary/5">
-                  <p className="font-semibold text-sm text-primary mb-2">Answer:</p>
-                  <p className="whitespace-pre-wrap leading-relaxed">{topResult.answer}</p>
                 </div>
               )}
             </CardContent>
