@@ -12,9 +12,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -30,7 +27,7 @@ jobs:
           context: ./frontend
           push: true
           tags: la5er/assist-craft-frontend:latest
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
       - name: Build & push assist-craft-server
         uses: docker/build-push-action@v6
@@ -38,7 +35,7 @@ jobs:
           context: ./server
           push: true
           tags: la5er/assist-craft-server:latest
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
   deploy:
     needs: build
@@ -52,14 +49,19 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY2 }}
           port: ${{ secrets.SSH_PORT2 }}
           script_stop: true
+          command_timeout: 10m
           script: |
             set -e
             cd /opt/rag-stack
             # ACME_EMAIL можно задать как секрет, а можно один раз прописать в .env на сервере
             export ACME_EMAIL="${{ secrets.ACME_EMAIL }}"
             # Обновляем traefik и сервисы, если нужно
-            docker compose pull traefik assist-craft-frontend assist-craft-server || true
+            echo "Pulling images..."
+            timeout 300 docker compose pull traefik assist-craft-frontend assist-craft-server || echo "Pull failed or timeout, continuing..."
+            echo "Starting services..."
             docker compose up -d traefik assist-craft-frontend assist-craft-server
+            echo "Waiting for services to start..."
+            sleep 5
             # Мини-проверка статуса
-            docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+            docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | grep -E "(traefik|assist-craft)" || true
 
