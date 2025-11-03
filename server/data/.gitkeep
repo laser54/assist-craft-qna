@@ -1,0 +1,4 @@
+# This directory contains SQLite database files
+# Database files are excluded from git via .gitignore
+# The database will be created automatically on first run
+

@@ -23,3 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 server/.env
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
