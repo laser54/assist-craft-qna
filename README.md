@@ -12,7 +12,7 @@
 - **🔍 Semantic Search**: Lightning-fast vector similarity search powered by Pinecone
 - **🎯 Intelligent Reranking**: Advanced transformer-based reranking for precise relevance scoring
 - **📊 Modern UI**: Beautiful, responsive interface built with shadcn/ui and Tailwind CSS
-- **📝 Q&A Management**: Full CRUD operations with bulk CSV import/export
+- **📝 Q&A Management**: Full CRUD operations with bulk Excel import/export
 - **🌐 Multi-language Support**: Optimized embeddings for query and passage types
 - **🔐 Secure Authentication**: Session-based access control
 - **⚡ Real-time Updates**: Live metrics and instant search results
@@ -150,11 +150,13 @@ This will start both frontend and backend servers:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8080
 
+**Note:** The SQLite database will be created automatically on first run in `server/data/app.db`. Database files are excluded from git via `.gitignore` to keep your data private.
+
 ### First Steps
 
 1. Open http://localhost:5173 in your browser
 2. Login with the password from `PORTAL_PASSWORD` in your `.env` file
-3. Add your first Q&A pair or import a CSV file
+3. Add your first Q&A pair or import an Excel file
 4. Start searching!
 
 ## 📖 Usage
@@ -168,9 +170,14 @@ This will start both frontend and backend servers:
 - Save (automatically synced to Pinecone)
 
 **Bulk Import:**
-- Use the CSV import feature
-- Format: `question,answer` (headers required)
+- Use the Excel import feature
+- Upload an XLSX file with the following column headers: `question`, `answer`, `language` (optional)
 - Supports batch processing with configurable chunk size
+- Example structure:
+  | question | answer | language |
+  |----------|--------|----------|
+  | What is AI? | Artificial Intelligence... | en |
+  | Что такое ИИ? | Искусственный интеллект... | ru |
 
 ### Searching
 
@@ -235,7 +242,7 @@ npm run build --workspace server
 - `POST /api/qa` - Create new Q&A pair
 - `PUT /api/qa/:id` - Update Q&A pair
 - `DELETE /api/qa/:id` - Delete Q&A pair
-- `POST /api/qa/import` - Bulk import from CSV
+- `POST /api/qa/import` - Bulk import from Excel (XLSX)
 - `GET /api/search?query=...` - Semantic search
 - `GET /api/metrics` - System statistics
 - `GET /api/settings` - Get settings

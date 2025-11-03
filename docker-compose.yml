@@ -1,0 +1,53 @@
+services:
+  # Frontend для https://qa.larin.work
+  assist-craft-frontend:
+    image: la5er/assist-craft-frontend:latest
+    restart: unless-stopped
+    networks: [internal]
+    labels:
+      - traefik.enable=true
+      # HTTP -> HTTPS
+      - traefik.http.routers.qa-frontend-http.rule=Host(`qa.larin.work`)
+      - traefik.http.routers.qa-frontend-http.entrypoints=web
+      - traefik.http.routers.qa-frontend-http.middlewares=to-https@docker
+      # HTTPS
+      - traefik.http.routers.qa-frontend.rule=Host(`qa.larin.work`)
+      - traefik.http.routers.qa-frontend.entrypoints=websecure
+      - traefik.http.routers.qa-frontend.tls=true
+      - traefik.http.routers.qa-frontend.tls.certresolver=le
+      - traefik.http.services.qa-frontend.loadbalancer.server.port=80
+
+  # Backend API для https://qa.larin.work/api
+  assist-craft-server:
+    image: la5er/assist-craft-server:latest
+    restart: unless-stopped
+    networks: [internal]
+    environment:
+      - PORT=8080
+      - NODE_ENV=production
+      - SQLITE_PATH=/data/app.db
+    volumes:
+      - assist-craft-data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rag-stack_internal
+      # HTTP -> HTTPS для API
+      - traefik.http.routers.qa-api-http.rule=Host(`qa.larin.work`) && PathPrefix(`/api`)
+      - traefik.http.routers.qa-api-http.entrypoints=web
+      - traefik.http.routers.qa-api-http.middlewares=to-https@docker
+      # HTTPS для API
+      - traefik.http.routers.qa-api.rule=Host(`qa.larin.work`) && PathPrefix(`/api`)
+      - traefik.http.routers.qa-api.entrypoints=websecure
+      - traefik.http.routers.qa-api.tls=true
+      - traefik.http.routers.qa-api.tls.certresolver=le
+      - traefik.http.routers.qa-api.priority=100
+      - traefik.http.services.qa-api.loadbalancer.server.port=8080
+
+networks:
+  internal:
+    external: true
+    name: rag-stack_internal
+
+volumes:
+  assist-craft-data:
+

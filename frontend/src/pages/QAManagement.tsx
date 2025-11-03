@@ -110,12 +110,12 @@ const parseXlsxFile = async (file: File): Promise<{ sheetName: string; rows: Imp
   try {
     workbook = read(buffer, { type: "array", cellDates: true });
   } catch (error) {
-    throw new Error("Не удалось прочитать XLSX. Проверьте файл.");
+    throw new Error("Failed to read XLSX file. Please check the file.");
   }
 
   const [sheetName] = workbook.SheetNames;
   if (!sheetName) {
-    throw new Error("XLSX-файл не содержит листов.");
+    throw new Error("XLSX file contains no sheets.");
   }
 
   const worksheet = workbook.Sheets[sheetName];
@@ -127,12 +127,12 @@ const parseXlsxFile = async (file: File): Promise<{ sheetName: string; rows: Imp
   });
 
   if (sheetRows.length === 0) {
-    throw new Error("XLSX-файл пуст.");
+    throw new Error("XLSX file is empty.");
   }
 
   const headerRow = sheetRows[0];
   if (!Array.isArray(headerRow)) {
-    throw new Error("Не удалось определить заголовок листа.");
+    throw new Error("Failed to determine sheet header.");
   }
 
   const headers = headerRow.map((value) => toCellString(value)?.toLowerCase() ?? "");
@@ -141,7 +141,7 @@ const parseXlsxFile = async (file: File): Promise<{ sheetName: string; rows: Imp
   const rows: ImportRow[] = dataRows.map((rowValues, index) => {
     const rowNumber = index + 2;
     if (!Array.isArray(rowValues)) {
-      return { rowNumber, parseError: "Некорректная структура строки XLSX" };
+      return { rowNumber, parseError: "Invalid XLSX row structure" };
     }
 
     const record: Record<string, string | null | undefined> = {};
@@ -494,8 +494,8 @@ const QAManagement = () => {
       fileName.endsWith(".xlsx");
     if (!isXlsx) {
       toast({
-        title: "Неверный формат",
-        description: "Пожалуйста, загрузите XLSX-файл с колонками question, answer.",
+        title: "Invalid format",
+        description: "Please upload an XLSX file with columns: question, answer.",
         variant: "destructive",
       });
       return;
@@ -515,7 +515,7 @@ const QAManagement = () => {
       });
 
       if (rows.length === 0) {
-        throw new Error("XLSX не содержит строк, которые удалось разобрать.");
+        throw new Error("XLSX contains no rows that could be parsed.");
       }
 
       setImportProgress({ total: rows.length, processed: 0, success: 0, failed: 0 });
@@ -531,10 +531,10 @@ const QAManagement = () => {
 
         if (parseError) {
           failed += 1;
-          failures.push({ rowNumber, error: `Ошибка структуры XLSX: ${parseError}` });
+          failures.push({ rowNumber, error: `XLSX structure error: ${parseError}` });
         } else if (!question || !answer) {
           failed += 1;
-          failures.push({ rowNumber, error: "Пустой question или answer" });
+          failures.push({ rowNumber, error: "Empty question or answer" });
         } else {
           try {
             console.log(`[Import Excel] Importing row ${rowNumber}: question="${question.substring(0, 50)}..."`);
@@ -563,7 +563,7 @@ const QAManagement = () => {
             }
           } catch (err) {
             failed += 1;
-            const message = err instanceof ApiError ? err.message : "Ошибка сервера";
+            const message = err instanceof ApiError ? err.message : "Server error";
             failures.push({ rowNumber, error: message });
             console.error(`[Import] Failed to import row ${rowNumber}:`, err);
           }
@@ -580,17 +580,17 @@ const QAManagement = () => {
       invalidateQa();
       await refresh().catch(() => undefined);
 
-      const summary = `Добавлено: ${success}. Ошибок: ${failed}${sheetName ? `. Лист: ${sheetName}` : ""}`;
+      const summary = `Added: ${success}. Errors: ${failed}${sheetName ? `. Sheet: ${sheetName}` : ""}`;
       const failurePreview = failures
         .slice(0, 3)
         .map((failure) => {
-          const prefix = failure.rowNumber ? `стр. ${failure.rowNumber}` : "лист";
+          const prefix = failure.rowNumber ? `row ${failure.rowNumber}` : "sheet";
           return `${prefix}: ${failure.error}`;
         })
         .join(" · ");
 
       toast({
-        title: "Импорт завершён",
+        title: "Import completed",
         description:
           failures.length > 0
             ? `${summary}${failurePreview ? `\n${failurePreview}${failures.length > 3 ? " · …" : ""}` : ""}`
@@ -600,9 +600,9 @@ const QAManagement = () => {
     } catch (error) {
       setImportProgress(null);
       setImportSheetName(null);
-      const message = error instanceof Error ? error.message : "Не удалось обработать XLSX";
+      const message = error instanceof Error ? error.message : "Failed to process XLSX";
       toast({
-        title: "Импорт не удался",
+        title: "Import failed",
         description: message,
         variant: "destructive",
       });
@@ -641,13 +641,13 @@ const QAManagement = () => {
       });
 
       toast({
-        title: "Экспорт готов",
-        description: `Экспортировано ${items.length} записей в XLSX`,
+        title: "Export completed",
+        description: `Exported ${items.length} records to XLSX`,
       });
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Не удалось экспортировать XLSX";
+      const message = error instanceof ApiError ? error.message : "Failed to export XLSX";
       toast({
-        title: "Экспорт не удался",
+        title: "Export failed",
         description: message,
         variant: "destructive",
       });
@@ -706,11 +706,11 @@ const QAManagement = () => {
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-primary">
               <span>
-                Обработано {importProgress.processed} из {importProgress.total} строк XLSX
+                Processed {importProgress.processed} of {importProgress.total} XLSX rows
               </span>
               {importSheetName ? (
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Лист: {importSheetName}
+                  Sheet: {importSheetName}
                 </span>
               ) : null}
             </div>

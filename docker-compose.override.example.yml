@@ -1,0 +1,67 @@
+services:
+  # Frontend для https://qa.larin.work
+  assist-craft-frontend:
+    image: la5er/assist-craft-frontend:latest
+    restart: unless-stopped
+    networks: [internal]
+    labels:
+      - traefik.enable=true
+      # HTTP -> HTTPS
+      - traefik.http.routers.qa-frontend-http.rule=Host(`qa.larin.work`)
+      - traefik.http.routers.qa-frontend-http.entrypoints=web
+      - traefik.http.routers.qa-frontend-http.middlewares=to-https@docker
+      # HTTPS
+      - traefik.http.routers.qa-frontend.rule=Host(`qa.larin.work`)
+      - traefik.http.routers.qa-frontend.entrypoints=websecure
+      - traefik.http.routers.qa-frontend.tls=true
+      - traefik.http.routers.qa-frontend.tls.certresolver=le
+      - traefik.http.services.qa-frontend.loadbalancer.server.port=80
+
+  # Backend API для https://qa.larin.work/api
+  assist-craft-server:
+    image: la5er/assist-craft-server:latest
+    restart: unless-stopped
+    networks: [internal]
+    environment:
+      - PORT=8080
+      - NODE_ENV=production
+      - SQLITE_PATH=/data/app.db
+      # Обязательные переменные (замените на реальные значения!)
+      - PORTAL_PASSWORD=your-secure-password-min-8-chars
+      - SESSION_SECRET=your-session-secret-min-16-chars-long
+      # Настройки cookie для production
+      - COOKIE_NAME=assist_auth
+      - COOKIE_DOMAIN=qa.larin.work
+      - COOKIE_SECURE=true
+      - SESSION_TTL_SECONDS=43200
+      # Pinecone конфигурация (опционально, но рекомендуется)
+      - PINECONE_API_KEY=
+      - PINECONE_INDEX=assist-craft
+      - PINECONE_HOST=https://assist-craft-xxxx.svc.gcp-starter.pinecone.io
+      - PINECONE_EMBED_MODEL=text-embedding-3-large
+      - PINECONE_RERANK_MODEL=bge-reranker-v2-m3
+      - PINECONE_RERANK_FALLBACK_MODEL=bge-reranker-v2-m3
+      - PINECONE_RERANK_DAILY_LIMIT=500
+      # Дополнительные настройки
+      - CSV_BATCH_SIZE=25
+      - DEFAULT_LOCALE=ru-RU
+    volumes:
+      - assist-craft-data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=rag-stack_internal
+      # HTTP -> HTTPS для API
+      - traefik.http.routers.qa-api-http.rule=Host(`qa.larin.work`) && PathPrefix(`/api`)
+      - traefik.http.routers.qa-api-http.entrypoints=web
+      - traefik.http.routers.qa-api-http.middlewares=to-https@docker
+      # HTTPS для API
+      - traefik.http.routers.qa-api.rule=Host(`qa.larin.work`) && PathPrefix(`/api`)
+      - traefik.http.routers.qa-api.entrypoints=websecure
+      - traefik.http.routers.qa-api.tls=true
+      - traefik.http.routers.qa-api.tls.certresolver=le
+      - traefik.http.routers.qa-api.priority=100
+      - traefik.http.services.qa-api.loadbalancer.server.port=8080
+
+volumes:
+  assist-craft-data:
+

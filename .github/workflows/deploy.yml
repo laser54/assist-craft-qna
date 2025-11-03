@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build & push assist-craft-frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: la5er/assist-craft-frontend:latest
+          platforms: linux/amd64,linux/arm64
+
+      - name: Build & push assist-craft-server
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: true
+          tags: la5er/assist-craft-server:latest
+          platforms: linux/amd64,linux/arm64
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST2 }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY2 }}
+          port: ${{ secrets.SSH_PORT2 }}
+          script_stop: true
+          script: |
+            set -e
+            cd /opt/rag-stack
+            # ACME_EMAIL можно задать как секрет, а можно один раз прописать в .env на сервере
+            export ACME_EMAIL="${{ secrets.ACME_EMAIL }}"
+            # Обновляем traefik и сервисы, если нужно
+            docker compose pull traefik assist-craft-frontend assist-craft-server || true
+            docker compose up -d traefik assist-craft-frontend assist-craft-server
+            # Мини-проверка статуса
+            docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+
