@@ -32,7 +32,7 @@ export const Navigation = () => {
             onClick={() => handleNavClick("/")}
           >
             <Logo size="md" />
-            <span className="hidden sm:inline-block text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <span className="hidden sm:inline-block text-lg font-semibold text-primary">
               Support Assistant
             </span>
           </div>

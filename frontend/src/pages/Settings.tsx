@@ -103,7 +103,7 @@ const SettingsPage = () => {
 
       <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-8">
         <div className="space-y-2">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent leading-tight">
+          <h1 className="text-3xl sm:text-4xl font-bold text-primary leading-tight">
             Settings
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">

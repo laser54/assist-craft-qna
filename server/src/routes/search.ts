@@ -29,7 +29,7 @@ router.get("/", async (req, res, next) => {
     const { query, topK } = searchSchema.parse(req.query);
 
     console.log(`[Search] Query: "${query}", topK: ${topK}`);
-    console.log(`[Search] Using index: ${env.PINECONE_INDEX}, namespace: qa`);
+    console.log(`[Search] Using index: ${env.PINECONE_INDEX}, namespace: ${env.PINECONE_NAMESPACE}`);
     
     const embeddingResult = await embeddingService.embed(query, "query");
     console.log(`[Search] Embedding model: ${embeddingResult.model}, dimension: ${embeddingResult.dimension}, inputType: query`);
@@ -37,7 +37,7 @@ router.get("/", async (req, res, next) => {
     const matches = await pineconeService.query({
       vector: embeddingResult.embedding,
       topK,
-      namespace: "qa",
+      namespace: env.PINECONE_NAMESPACE,
     });
 
     console.log(`[Search] Pinecone returned ${matches.length} matches`);
@@ -112,7 +112,7 @@ router.get("/", async (req, res, next) => {
     const pipeline = {
       vector: {
         index: env.PINECONE_INDEX ?? null,
-        namespace: "qa",
+        namespace: env.PINECONE_NAMESPACE,
         topK,
       },
       rerank: {

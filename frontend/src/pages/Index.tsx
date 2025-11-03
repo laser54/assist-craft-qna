@@ -161,7 +161,7 @@ const Index = () => {
 
       <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
         <div className="text-center space-y-3 pt-8">
-          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent leading-tight">
+          <h1 className="text-4xl sm:text-5xl font-bold text-primary leading-tight">
             Support Operator Assistant
           </h1>
           <p className="text-muted-foreground text-lg leading-relaxed">
@@ -183,10 +183,10 @@ const Index = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="shadow-sm border-primary/20 hover:shadow-md transition-shadow">
+          <Card className="shadow-sm border-accent/30 hover:shadow-md transition-shadow hover:border-accent/50">
             <CardContent className="py-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-lg bg-accent/15 flex items-center justify-center ring-1 ring-accent/20">
                   <Network className="h-5 w-5 text-accent" />
                 </div>
                 <div className="flex-1">
@@ -199,9 +199,9 @@ const Index = () => {
           <Card className="shadow-sm border-primary/20 hover:shadow-md transition-shadow">
             <CardContent className="py-5">
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${pipelineMeta?.rerank?.applied ? 'bg-accent/15 ring-1 ring-accent/20' : 'bg-primary/15'}`}>
                   {pipelineMeta?.rerank?.applied ? (
-                    <Sparkles className="h-5 w-5 text-primary" />
+                    <Sparkles className="h-5 w-5 text-accent" />
                   ) : (
                     <Database className="h-5 w-5 text-primary" />
                   )}
@@ -212,7 +212,7 @@ const Index = () => {
                     {pipelineMeta ? (
                       pipelineMeta.rerank.applied ? (
                         <>
-                          <Badge variant="default" className="text-xs px-2 py-0.5">
+                          <Badge className="text-xs px-2 py-0.5 bg-accent text-accent-foreground border-accent/20">
                             <Sparkles className="h-3 w-3 mr-1" />
                             Reranked
                           </Badge>
@@ -239,7 +239,7 @@ const Index = () => {
           </Card>
         </div>
 
-        <Card className="border-primary/20 shadow-lg bg-gradient-to-br from-card to-primary/5">
+        <Card className="border-primary/20 shadow-lg bg-gradient-to-br from-card to-primary/5 hover:border-accent/30 transition-colors">
           <CardContent className="pt-6">
             <div className="flex gap-2">
               <Input
@@ -248,7 +248,7 @@ const Index = () => {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 disabled={isSearching}
-                className="h-12 text-base"
+                className="h-12 text-base focus-visible:ring-accent/20"
               />
               <Button
                 onClick={handleSearch}
@@ -266,7 +266,7 @@ const Index = () => {
               </Button>
             </div>
             <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
-              <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent" />
+              <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent drop-shadow-sm" />
               <p>Describe the customer intent in plain English — the semantic stack tracks meaning, not just matching words.</p>
             </div>
             {rerankerRejected && (
@@ -388,7 +388,7 @@ const Index = () => {
                 <span className="flex items-center gap-3 text-primary">
                   Top Result
                   {pipelineMeta?.rerank?.applied ? (
-                    <Badge variant="secondary" className="gap-1">
+                    <Badge className="gap-1 bg-accent text-accent-foreground border-accent/20">
                       <Sparkles className="w-3 h-3" />
                       Reranked
                     </Badge>
@@ -408,7 +408,7 @@ const Index = () => {
                 <p className="font-semibold text-sm text-muted-foreground mb-2">Question:</p>
                 <p className="text-lg">{topResult.question}</p>
               </div>
-              <div className="p-4 rounded-lg bg-primary/5">
+              <div className="p-4 rounded-lg bg-primary/5 border-l-4 border-accent">
                 <p className="font-semibold text-sm text-primary mb-2">Answer:</p>
                 <p className="whitespace-pre-wrap leading-relaxed">{topResult.answer}</p>
               </div>
@@ -526,7 +526,7 @@ const Index = () => {
           </Card>
         )}
 
-        <Card className="border-primary/40 shadow-xl bg-gradient-to-br from-card via-primary/5 to-accent/10">
+        <Card className="border-primary/40 shadow-xl">
           <CardHeader className="space-y-2">
             <CardTitle className="text-2xl text-primary">Why our semantic search beats keyword filters</CardTitle>
             <p className="text-muted-foreground text-sm">
@@ -566,12 +566,12 @@ const Index = () => {
               </div>
 
               <div className="flex gap-3">
-                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-accent/20 ring-1 ring-accent/30 text-accent font-semibold">
                   3
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 font-semibold">
-                    <Sparkles className="w-4 h-4 text-primary" />
+                    <Sparkles className="w-4 h-4 text-accent" />
                     Transformer reranker checks the nuance
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">

@@ -15,8 +15,6 @@ type QueryParams = {
   namespace?: string;
 };
 
-const INDEX_NAMESPACE = "qa";
-
 const isNotFoundError = (error: unknown): boolean => {
   if (!error || typeof error !== "object") return false;
   const name = (error as any)?.name;
@@ -31,7 +29,7 @@ export const pineconeService = {
     if (!env.pineconeConfigured) return;
     const index = pineconeClient.getIndex();
     if (!index) return;
-    const scoped = namespace ? index.namespace(namespace) : index.namespace(INDEX_NAMESPACE);
+    const scoped = index.namespace(namespace ?? env.PINECONE_NAMESPACE);
     await scoped.upsert([{
       id,
       values,
@@ -43,7 +41,7 @@ export const pineconeService = {
     if (!env.pineconeConfigured) return;
     const index = pineconeClient.getIndex();
     if (!index) return;
-    const scoped = index.namespace(INDEX_NAMESPACE);
+    const scoped = index.namespace(env.PINECONE_NAMESPACE);
     try {
       await scoped.deleteMany([id]);
     } catch (error) {
@@ -59,7 +57,7 @@ export const pineconeService = {
     if (ids.length === 0) return;
     const index = pineconeClient.getIndex();
     if (!index) return;
-    const scoped = index.namespace(INDEX_NAMESPACE);
+    const scoped = index.namespace(env.PINECONE_NAMESPACE);
     try {
       await scoped.deleteMany(ids);
     } catch (error) {
@@ -74,7 +72,7 @@ export const pineconeService = {
     if (!env.pineconeConfigured) return [];
     const index = pineconeClient.getIndex();
     if (!index) return [];
-    const scopedIndex = namespace ? index.namespace(namespace) : index.namespace(INDEX_NAMESPACE);
+    const scopedIndex = index.namespace(namespace ?? env.PINECONE_NAMESPACE);
     const params: QueryOptions = {
       vector,
       topK,
@@ -96,13 +94,14 @@ export const pineconeService = {
     if (!env.pineconeConfigured) return;
     const index = pineconeClient.getIndex();
     if (!index) return;
-    const scoped = namespace ? index.namespace(namespace) : index.namespace(INDEX_NAMESPACE);
+    const targetNamespace = namespace ?? env.PINECONE_NAMESPACE;
+    const scoped = index.namespace(targetNamespace);
     try {
       await scoped.deleteAll();
-      console.log(`[Pinecone] Deleted all vectors from namespace: ${namespace ?? INDEX_NAMESPACE}`);
+      console.log(`[Pinecone] Deleted all vectors from namespace: ${targetNamespace}`);
     } catch (error) {
       if (isNotFoundError(error)) {
-        console.log(`[Pinecone] Namespace ${namespace ?? INDEX_NAMESPACE} is already empty`);
+        console.log(`[Pinecone] Namespace ${targetNamespace} is already empty`);
         return;
       }
       throw error;

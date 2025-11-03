@@ -21,14 +21,14 @@ export const Logo = ({ size = "md", showText = true }: LogoProps) => {
   return (
     <div className="flex items-center gap-2">
       <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary to-accent rounded-lg blur-sm opacity-50" />
-        <div className="relative bg-gradient-to-br from-primary to-accent p-1.5 rounded-lg">
+        <div className="absolute inset-0 bg-primary/20 rounded-lg blur-sm opacity-50" />
+        <div className="relative bg-primary p-1.5 rounded-lg">
           <MessageSquare className={`${sizeClasses[size]} text-primary-foreground`} />
-          <Sparkles className="absolute -top-1 -right-1 h-3 w-3 text-yellow-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] dark:drop-shadow-[0_1px_2px_rgba(255,255,255,0.2)]" />
+          <Sparkles className="absolute -top-1 -right-1 h-3 w-3 text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)] dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]" />
         </div>
       </div>
       {showText && (
-        <span className={`font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent ${textSizeClasses[size]}`}>
+        <span className={`font-bold text-primary ${textSizeClasses[size]}`}>
           Smart FAQ
         </span>
       )}

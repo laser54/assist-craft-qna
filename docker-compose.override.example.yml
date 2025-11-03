@@ -42,6 +42,7 @@ services:
       - PINECONE_RERANK_MODEL=bge-reranker-v2-m3
       - PINECONE_RERANK_FALLBACK_MODEL=bge-reranker-v2-m3
       - PINECONE_RERANK_DAILY_LIMIT=500
+      - PINECONE_NAMESPACE=qa
       # Дополнительные настройки
       - CSV_BATCH_SIZE=25
       - DEFAULT_LOCALE=ru-RU

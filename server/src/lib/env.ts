@@ -21,6 +21,7 @@ const envSchema = z.object({
   PINECONE_RERANK_FALLBACK_MODEL: z.string().trim().min(1).default("bge-reranker-v2-m3"),
   PINECONE_EMBED_INPUT_TYPE: z.string().trim().min(1).optional(),
   PINECONE_RERANK_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
+  PINECONE_NAMESPACE: z.string().trim().min(1).default("qa"),
   CSV_BATCH_SIZE: z.coerce.number().int().positive().default(25),
   DEFAULT_LOCALE: z.string().trim().min(2).default("ru-RU"),
 });

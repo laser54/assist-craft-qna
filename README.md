@@ -138,6 +138,7 @@ PINECONE_HOST=https://your-index.svc.environment.pinecone.io
 PINECONE_EMBED_MODEL=text-embedding-3-large
 PINECONE_RERANK_MODEL=bge-reranker-v2-m3
 PINECONE_RERANK_DAILY_LIMIT=500
+PINECONE_NAMESPACE=qa
 CSV_BATCH_SIZE=25
 ```
 

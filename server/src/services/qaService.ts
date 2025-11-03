@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { db } from "../lib/db";
 import { embeddingService } from "./embeddingService";
 import { pineconeService } from "./pineconeService";
+import { env } from "../lib/env";
 
 export interface QAPair {
   id: string;
@@ -193,7 +194,6 @@ export const qaService = {
         id: qa.id,
         values: embedding,
         metadata,
-        namespace: "qa",
       });
       
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -294,7 +294,7 @@ export const qaService = {
   async resyncAll(): Promise<{ total: number; synced: number; failed: number; errors: string[] }> {
     console.log(`[resyncAll] Starting resync - clearing Pinecone namespace first`);
     try {
-      await pineconeService.deleteAllVectors("qa");
+      await pineconeService.deleteAllVectors();
       console.log(`[resyncAll] Pinecone namespace cleared`);
     } catch (error) {
       console.error(`[resyncAll] Failed to clear Pinecone namespace:`, error);
