@@ -10,6 +10,7 @@ const updateSchema = z
     similarityThreshold: z.number().min(0).max(1).optional(),
     model: z.string().trim().min(1).max(128).optional(),
     rerankModel: z.string().trim().min(1).max(128).optional().nullable(),
+    rerankEnabled: z.boolean().optional(),
     csvBatchSize: z.number().int().min(1).max(500).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
