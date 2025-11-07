@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck, Zap, MessageSquare, Network } from "lucide-react";
+import { Search, Loader2, ChevronDown, ChevronUp, Lightbulb, Database, Sparkles, Info, Brain, ShieldCheck, Zap, MessageSquare, Network, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -241,19 +241,35 @@ const Index = () => {
 
         <Card className="border-primary/20 shadow-lg bg-gradient-to-br from-card to-primary/5 hover:border-accent/30 transition-colors">
           <CardContent className="pt-6">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Try: How do I reset my password?"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                disabled={isSearching}
-                className="h-12 text-base focus-visible:ring-accent/20"
-              />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Try: How do I reset my password?"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  disabled={isSearching}
+                  className="h-12 text-base focus-visible:ring-accent/20 pr-10"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setResults([]);
+                      setHasSearched(false);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <Button
                 onClick={handleSearch}
-                disabled={isSearching}
-                className="h-12 px-6"
+                disabled={isSearching || !query.trim()}
+                className="h-12 px-6 w-full sm:w-auto"
               >
                 {isSearching ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -566,12 +582,12 @@ const Index = () => {
               </div>
 
               <div className="flex gap-3">
-                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-accent/20 ring-1 ring-accent/30 text-accent font-semibold">
+                <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/15 text-primary font-semibold">
                   3
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 font-semibold">
-                    <Sparkles className="w-4 h-4 text-accent" />
+                    <Sparkles className="w-4 h-4 text-primary" />
                     Transformer reranker checks the nuance
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
