@@ -8,9 +8,11 @@ export default defineConfig({
     assetsDir: "static",
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-slot', 'lucide-react'],
+        manualChunks(id) {
+          // Создаем отдельный чанк для каждой библиотеки из node_modules
+          if (id.includes('node_modules')) {
+            return id.toString().split('node_modules/')[1].split('/')[0].toString();
+          }
         },
       },
     },
