@@ -18,7 +18,7 @@ services:
       - traefik.http.routers.qa-frontend.middlewares=qa-csp-headers@docker
       - traefik.http.services.qa-frontend.loadbalancer.server.port=80
       # CSP middleware - allow inline scripts and eval for React to work
-      - traefik.http.middlewares.qa-csp-headers.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.pinecone.io; frame-ancestors 'self'
+      - "traefik.http.middlewares.qa-csp-headers.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.pinecone.io; frame-ancestors 'self'"
 
   # Backend API for https://qa.larin.work/api
   assist-craft-server:
