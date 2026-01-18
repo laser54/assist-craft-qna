@@ -65,6 +65,7 @@ const Index = () => {
   const [rerankerRejected, setRerankerRejected] = useState(false);
   const [topRerankScore, setTopRerankScore] = useState<number | undefined>(undefined);
   const [hasSearched, setHasSearched] = useState(false);
+  const [expandedLowScoreIds, setExpandedLowScoreIds] = useState<Set<string>>(new Set());
   const { metrics } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -90,12 +91,12 @@ const Index = () => {
             attemptedModels: Array.isArray(meta.rerank.attemptedModels) ? meta.rerank.attemptedModels : [],
             usage: meta.rerank.usage
               ? {
-                  lastCallUnits: meta.rerank.usage.lastCallUnits,
-                  unitsUsed: meta.rerank.usage.unitsUsed,
-                  limit: meta.rerank.usage.limit,
-                  remaining: meta.rerank.usage.remaining,
-                  date: meta.rerank.usage.date,
-                }
+                lastCallUnits: meta.rerank.usage.lastCallUnits,
+                unitsUsed: meta.rerank.usage.unitsUsed,
+                limit: meta.rerank.usage.limit,
+                remaining: meta.rerank.usage.remaining,
+                date: meta.rerank.usage.date,
+              }
               : undefined,
           },
         });
@@ -130,6 +131,7 @@ const Index = () => {
       const searchResults = await searchMutation.mutateAsync({ query });
       setResults(searchResults);
       setShowAllResults(false);
+      setExpandedLowScoreIds(new Set());
       setHasSearched(true);
 
       if (searchResults.length === 0 && !rerankerRejected) {
@@ -481,10 +483,41 @@ const Index = () => {
                     </div>
                     <p className="font-medium mb-2">{result.question}</p>
                     {isLowScore(result.score) ? (
-                      <p className="text-xs text-amber-700/90">
-                        Match confidence {(result.score * 100).toFixed(1)}%. Answer hidden until you tune the query or
-                        strengthen the knowledge base.
-                      </p>
+                      expandedLowScoreIds.has(result.id) ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSet = new Set(expandedLowScoreIds);
+                              newSet.delete(result.id);
+                              setExpandedLowScoreIds(newSet);
+                            }}
+                            className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 transition-colors"
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                            Hide answer
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs text-amber-700/90">
+                            Match confidence {(result.score * 100).toFixed(1)}%. Answer hidden due to low confidence.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSet = new Set(expandedLowScoreIds);
+                              newSet.add(result.id);
+                              setExpandedLowScoreIds(newSet);
+                            }}
+                            className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 transition-colors"
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                            Show answer anyway
+                          </button>
+                        </div>
+                      )
                     ) : (
                       <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
                     )}
@@ -525,9 +558,44 @@ const Index = () => {
                   </div>
                   <p className="font-medium mb-2">{result.question}</p>
                   {isLowScore(result.vectorScore) ? (
-                    <p className="text-xs text-amber-700/90">
-                      Vector match confidence {(result.vectorScore * 100).toFixed(1)}%. This result was rejected by the reranker.
-                    </p>
+                    expandedLowScoreIds.has(result.id) ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
+                        <p className="text-xs text-amber-700/90">
+                          Note: The reranker determined this is not relevant enough to answer your query.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSet = new Set(expandedLowScoreIds);
+                            newSet.delete(result.id);
+                            setExpandedLowScoreIds(newSet);
+                          }}
+                          className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 transition-colors"
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                          Hide answer
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-amber-700/90">
+                          Vector match confidence {(result.vectorScore * 100).toFixed(1)}%. Answer hidden due to low confidence.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSet = new Set(expandedLowScoreIds);
+                            newSet.add(result.id);
+                            setExpandedLowScoreIds(newSet);
+                          }}
+                          className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 transition-colors"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                          Show answer anyway
+                        </button>
+                      </div>
+                    )
                   ) : (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground leading-relaxed">{result.answer}</p>
