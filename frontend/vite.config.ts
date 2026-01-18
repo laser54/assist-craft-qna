@@ -6,6 +6,14 @@ import path from "path";
 export default defineConfig({
   build: {
     assetsDir: "static",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-slot', 'lucide-react'],
+        },
+      },
+    },
   },
   server: {
     host: "::",
