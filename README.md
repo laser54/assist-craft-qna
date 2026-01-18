@@ -7,6 +7,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Pinecone](https://img.shields.io/badge/Pinecone-430098?style=flat&logo=pinecone&logoColor=white)](https://www.pinecone.io/)
 
+![Support Operator Assistant Screenshot](screenshot.png)
 ## ✨ Features
 
 - **🔍 Semantic Search**: Lightning-fast vector similarity search powered by Pinecone
