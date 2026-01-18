@@ -15,7 +15,10 @@ services:
       - traefik.http.routers.qa-frontend.entrypoints=websecure
       - traefik.http.routers.qa-frontend.tls=true
       - traefik.http.routers.qa-frontend.tls.certresolver=le
+      - traefik.http.routers.qa-frontend.middlewares=qa-csp-headers@docker
       - traefik.http.services.qa-frontend.loadbalancer.server.port=80
+      # CSP middleware - разрешаем inline scripts и eval для работы React
+      - traefik.http.middlewares.qa-csp-headers.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.pinecone.io; frame-ancestors 'self'
 
   # Backend API для https://qa.larin.work/api
   assist-craft-server:
