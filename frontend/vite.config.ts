@@ -6,6 +6,7 @@ import path from "path";
 export default defineConfig({
   build: {
     assetsDir: "static",
+    modulePreload: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
