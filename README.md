@@ -1,6 +1,12 @@
-# 🚀 Smart FAQ - AI-Powered Q&A Assistant
+# Smart FAQ — semantic retrieval and reranking component
 
-> A modern, production-ready Question & Answer management system powered by vector search and semantic reranking. Built with cutting-edge open-source technologies for maximum performance and developer experience.
+> A public knowledge-base component for the [AI Support Platform](https://github.com/laser54/support_operator_panel): it stores Q&A content, retrieves semantically related candidates, and reranks them for an operator-facing workflow. It does not generate answers.
+
+**Status:** functional prototype / retrieval component, not a production-service claim. Use only synthetic or properly authorized data.
+
+**My contribution:** I built the product and engineering workflow around Q&A management, semantic retrieval, reranking, and the React/Express integration. The related [Support Operator Panel](https://github.com/laser54/support_operator_panel) provides the operator UI and FastAPI/PostgreSQL context; the repositories intentionally use different stacks.
+
+**Workflow:** Q&A content → embeddings → vector retrieval → reranking → ranked candidates for the support workflow.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -10,8 +16,8 @@
 ![Support Operator Assistant Screenshot](screenshot.png)
 ## ✨ Features
 
-- **🔍 Semantic Search**: Lightning-fast vector similarity search powered by Pinecone
-- **🎯 Intelligent Reranking**: Advanced transformer-based reranking for precise relevance scoring
+- **🔍 Semantic retrieval**: vector-similarity retrieval powered by Pinecone
+- **🎯 Reranking**: transformer-based reranking of retrieved candidates
 - **📊 Modern UI**: Beautiful, responsive interface built with shadcn/ui and Tailwind CSS
 - **📝 Q&A Management**: Full CRUD operations with bulk Excel import/export
 - **🌐 Multi-language Support**: Optimized embeddings for query and passage types
@@ -43,7 +49,7 @@
 - **🚀 Express 5** - Fast, unopinionated web framework for Node.js
 - **📘 TypeScript** - End-to-end type safety across the stack
 - **🗄️ SQLite (better-sqlite3)** - Zero-configuration database, perfect for embedded applications
-- **🔍 Pinecone** - Managed vector database for production ML applications
+- **🔍 Pinecone** - managed vector database used for embeddings, retrieval, and reranking
 - **✅ Zod** - TypeScript-first schema validation with static type inference
 - **📝 Pino** - Extremely fast logger with structured JSON output
 
@@ -59,12 +65,10 @@
 - **🎯 Pinecone Reranker** - Transformer-based reranking models (e.g., `bge-reranker-v2-m3`)
 - **📊 Semantic Search** - Query-aware embeddings optimized for search vs. document storage
 
-**Why Pinecone?**
-- **Managed Infrastructure**: No DevOps overhead, automatic scaling, and 99.9% uptime SLA
-- **Optimized Performance**: Sub-50ms query latency, handles millions of vectors effortlessly
-- **Production-Ready**: Battle-tested by thousands of companies, enterprise-grade security
-- **Multi-language Support**: Excellent coverage for international applications
-- **Unified API**: Embeddings, vector storage, and reranking through a single platform
+**Why Pinecone here?**
+- **Unified API**: embeddings, vector storage, retrieval, and reranking are available through one service.
+- **Retrieval workflow fit**: query and passage embeddings can be configured separately, then reranked for relevance.
+- **Boundary**: provider capabilities and service-level claims are not performance measurements of this prototype.
 
 ## 🏗️ Architecture
 
