@@ -72,23 +72,39 @@
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────┐
-│   React + Vite  │  Frontend (Port 5173)
-│   TypeScript    │
-└────────┬────────┘
-         │ REST API
-┌────────▼────────┐
-│  Express Server │  Backend (Port 8080)
-│   TypeScript    │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-┌───▼───┐ ┌──▼────┐
-│SQLite │ │Pinecone│
-│  DB   │ │Vector DB│
-└───────┘ └────────┘
+```mermaid
+flowchart TD
+    subgraph Client ["Client / Integration Layer"]
+        UI["React 18 SPA (Knowledge Management Portal)"]
+        OperatorAPI["External Operator API (support_operator_panel)"]
+    end
+
+    subgraph Backend ["Express 5 / Node.js 20 Backend"]
+        API["Express REST API & Session Auth"]
+        QAMgr["Q&A Manager & Sync Service"]
+        SearchSvc["Semantic Retrieval Pipeline"]
+    end
+
+    subgraph Storage ["Persistence & Vector Store"]
+        SQLite[("SQLite / better-sqlite3 (Q&A Records & Settings)")]
+        Pinecone[("Pinecone Vector DB (Embeddings Index)")]
+    end
+
+    subgraph Models ["Pinecone Inference / Rerank Pipeline"]
+        Embedder["Pinecone Embeddings (text-embedding-3-large)"]
+        Reranker["Cross-Encoder Reranker (bge-reranker-v2-m3)"]
+    end
+
+    UI -->|"CRUD & Excel Import"| API
+    OperatorAPI -->|"HTTP Search Query"| SearchSvc
+    QAMgr -->|"Persist Records"| SQLite
+    QAMgr -->|"Sync Embeddings"| Pinecone
+    
+    SearchSvc -->|"1. Embed Query"| Embedder
+    Embedder -->|"2. Vector Similarity Search"| Pinecone
+    Pinecone -->|"3. Top-K Candidates"| Reranker
+    Reranker -->|"4. Cross-Encoder Rerank & Score"| SearchSvc
+    SearchSvc -->|"5. Ranked Q&A Results"| OperatorAPI
 ```
 
 ### Key Design Decisions
