@@ -1,285 +1,107 @@
-# Smart FAQ — semantic retrieval and reranking component
+# Assist Craft Q&A
 
-> A public knowledge-base component for the [AI Support Platform](https://github.com/laser54/support_operator_panel): it stores Q&A content, retrieves semantically related candidates, and reranks them for an operator-facing workflow. It does not generate answers.
+> **Semantic retrieval component for the [AI Support Platform](https://github.com/laser54/support_operator_panel).** It manages a curated Q&A knowledge base, retrieves candidates by meaning, reranks them, and returns existing approved material to an operator workflow. It does **not** generate answers.
 
-**Status:** functional prototype / retrieval component, not a production-service claim. Use only synthetic or properly authorized data.
+## Case overview
 
-**My contribution:** I built the product and engineering workflow around Q&A management, semantic retrieval, reranking, and the React/Express integration. The related [Support Operator Panel](https://github.com/laser54/support_operator_panel) provides the operator UI and FastAPI/PostgreSQL context; the repositories intentionally use different stacks.
+**Problem.** A support workflow needs a maintainable knowledge source and relevant operator suggestions without turning unverified text into an answer.
 
-**Workflow:** Q&A content → embeddings → vector retrieval → reranking → ranked candidates for the support workflow.
+**Workflow.** Q&A management → SQLite canonical records → embeddings and vector retrieval → reranking → ranked existing Q&A for the connected operator panel.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Pinecone](https://img.shields.io/badge/Pinecone-430098?style=flat&logo=pinecone&logoColor=white)](https://www.pinecone.io/)
+**My contribution.** I designed and built the Q&A-management, semantic retrieval, reranking, and React/Express integration workflow. The related [Support Operator Panel](https://github.com/laser54/support_operator_panel) owns the operator-facing FastAPI/PostgreSQL workflow; the repositories deliberately use different stacks and together form one case.
 
-![Support Operator Assistant Screenshot](screenshot.png)
-## ✨ Features
+**Status and boundaries.** This is a functional prototype and retrieval component, not a claim of a corporate production deployment, measured search quality, or current customer use. Use synthetic or properly authorized data only. Session authentication and environment configuration are implementation mechanisms, not a security certification.
 
-- **🔍 Semantic retrieval**: vector-similarity retrieval powered by Pinecone
-- **🎯 Reranking**: transformer-based reranking of retrieved candidates
-- **📊 Modern UI**: Beautiful, responsive interface built with shadcn/ui and Tailwind CSS
-- **📝 Q&A Management**: Full CRUD operations with bulk Excel import/export
-- **🌐 Multi-language Support**: Optimized embeddings for query and passage types
-- **🔐 Secure Authentication**: Session-based access control
-- **⚡ Real-time Updates**: Live metrics and instant search results
-- **📱 Mobile-First**: Fully responsive design for all devices
+<img src="screenshot.png" alt="Assist Craft Q&A knowledge-management interface" width="760" />
 
-## 🛠️ Tech Stack
-
-### Frontend
-- **⚛️ React 18** - Modern UI library with hooks and concurrent features
-- **📘 TypeScript** - Type-safe development with excellent IDE support
-- **⚡ Vite** - Next-generation frontend tooling with instant HMR
-- **🎨 Tailwind CSS** - Utility-first CSS framework for rapid UI development
-- **🧩 shadcn/ui** - High-quality, accessible component library built on Radix UI
-- **🔄 React Query** - Powerful data synchronization and caching
-- **🗺️ React Router** - Declarative routing for single-page applications
-- **📊 Recharts** - Composable charting library built on React components
-
-**Why these technologies?**
-- **React + TypeScript**: Industry-standard combination providing type safety, excellent tooling, and massive ecosystem
-- **Vite**: 10-100x faster than Webpack, instant server start, and optimized production builds
-- **Tailwind CSS**: Write styles faster, maintain consistency, and build responsive UIs without leaving HTML
-- **shadcn/ui**: Copy-paste components you own, fully customizable, accessible by default
-- **React Query**: Eliminates boilerplate for data fetching, caching, synchronization, and background updates
-
-### Backend
-- **🟢 Node.js 20** - JavaScript runtime built on Chrome's V8 engine
-- **🚀 Express 5** - Fast, unopinionated web framework for Node.js
-- **📘 TypeScript** - End-to-end type safety across the stack
-- **🗄️ SQLite (better-sqlite3)** - Zero-configuration database, perfect for embedded applications
-- **🔍 Pinecone** - managed vector database used for embeddings, retrieval, and reranking
-- **✅ Zod** - TypeScript-first schema validation with static type inference
-- **📝 Pino** - Extremely fast logger with structured JSON output
-
-**Why these technologies?**
-- **Express**: Minimal, flexible, battle-tested framework with massive middleware ecosystem
-- **SQLite**: Perfect for applications needing reliable, file-based storage without database server overhead
-- **Pinecone**: Production-ready vector DB with managed infrastructure, automatic scaling, and optimized performance
-- **Zod**: Catch errors at runtime AND compile-time, eliminates duplicate type definitions
-- **better-sqlite3**: Fastest SQLite binding for Node.js, synchronous API perfect for server-side operations
-
-### AI/ML
-- **🧠 Pinecone Embeddings** - State-of-the-art embedding models (e.g., `text-embedding-3-large`)
-- **🎯 Pinecone Reranker** - Transformer-based reranking models (e.g., `bge-reranker-v2-m3`)
-- **📊 Semantic Search** - Query-aware embeddings optimized for search vs. document storage
-
-**Why Pinecone here?**
-- **Unified API**: embeddings, vector storage, retrieval, and reranking are available through one service.
-- **Retrieval workflow fit**: query and passage embeddings can be configured separately, then reranked for relevance.
-- **Boundary**: provider capabilities and service-level claims are not performance measurements of this prototype.
-
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Client ["Client / Integration Layer"]
-        UI["React 18 SPA (Knowledge Management Portal)"]
-        OperatorAPI["External Operator API (support_operator_panel)"]
-    end
+flowchart LR
+    UI["React knowledge-management UI"] -->|"CRUD / XLSX import"| API["Express API"]
+    Panel["Support Operator Panel"] -->|"HTTP query"| Search["Search pipeline"]
 
-    subgraph Backend ["Express 5 / Node.js 20 Backend"]
-        API["Express REST API & Session Auth"]
-        QAMgr["Q&A Manager & Sync Service"]
-        SearchSvc["Semantic Retrieval Pipeline"]
-    end
+    API --> QA["Q&A management"]
+    QA --> SQLite[("SQLite: canonical Q&A")]
+    QA --> Pinecone[("Pinecone: vector index")]
 
-    subgraph Storage ["Persistence & Vector Store"]
-        SQLite[("SQLite / better-sqlite3 (Q&A Records & Settings)")]
-        Pinecone[("Pinecone Vector DB (Embeddings Index)")]
-    end
-
-    subgraph Models ["Pinecone Inference / Rerank Pipeline"]
-        Embedder["Pinecone Embeddings (text-embedding-3-large)"]
-        Reranker["Cross-Encoder Reranker (bge-reranker-v2-m3)"]
-    end
-
-    UI -->|"CRUD & Excel Import"| API
-    OperatorAPI -->|"HTTP Search Query"| SearchSvc
-    QAMgr -->|"Persist Records"| SQLite
-    QAMgr -->|"Sync Embeddings"| Pinecone
-    
-    SearchSvc -->|"1. Embed Query"| Embedder
-    Embedder -->|"2. Vector Similarity Search"| Pinecone
-    Pinecone -->|"3. Top-K Candidates"| Reranker
-    Reranker -->|"4. Cross-Encoder Rerank & Score"| SearchSvc
-    SearchSvc -->|"5. Ranked Q&A Results"| OperatorAPI
+    Search --> Embed["Embed query"]
+    Embed --> Pinecone
+    Pinecone --> Candidates["Retrieve candidates"]
+    Candidates --> Rerank["Rerank candidates"]
+    Rerank --> Results["Ranked existing Q&A"]
+    Results --> Panel
 ```
 
-### Key Design Decisions
+### Behaviour that is explicit in the code
 
-- **Monorepo Structure**: Shared TypeScript configs, single dependency management, easier refactoring
-- **RESTful API**: Standard HTTP methods, predictable endpoints, easy to test and integrate
-- **Session-based Auth**: Simple, secure, no JWT complexity for single-server deployments
-- **Vector Search Pipeline**: Embed → Search → Rerank for optimal relevance
-- **Retry Logic**: Automatic retries for Pinecone operations with exponential backoff
+- Q&A pairs can be created, updated, imported from XLSX, and synchronized to the vector index.
+- Search embeds the query, retrieves a configurable candidate set, then reranks candidates when a rerank model is configured.
+- A very low top rerank score is treated as **no relevant answer**; the response exposes the pipeline state and, where applicable, vector candidates rather than fabricating an answer.
+- If reranking is unavailable or fails, the API records the fallback reason. This is graceful retrieval degradation, not proof of search accuracy.
 
-## 🚀 Quick Start
+## Stack
+
+| Area | Implementation |
+| --- | --- |
+| Knowledge-management UI | React, TypeScript, Vite, Tailwind/shadcn-ui |
+| API and validation | Node.js, Express, TypeScript, Zod |
+| Canonical store | SQLite via `better-sqlite3` |
+| Retrieval | Pinecone embeddings, vector retrieval, optional reranking |
+| Integration | HTTP API consumed by `support_operator_panel` |
+| Delivery | Docker Compose and a GitHub Actions deploy workflow |
+
+## Quick start
 
 ### Prerequisites
 
-- **Node.js** 20+ ([install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating))
-- **npm** 9+ (comes with Node.js)
-- **Pinecone Account** ([sign up for free](https://www.pinecone.io/))
+- Node.js 20+
+- npm 9+
+- A Pinecone account and an index compatible with the configured embedding model
 
-### Installation
+### Local setup
 
-1. **Clone the repository**
 ```bash
-git clone <YOUR_GIT_URL>
+git clone https://github.com/laser54/assist-craft-qna.git
 cd assist-craft-qna
-```
-
-2. **Install dependencies**
-```bash
 npm install
-```
 
-3. **Configure environment variables**
-
-Copy the example environment file:
-```bash
 cp server/example.env server/.env
-```
-
-Edit `server/.env` with your configuration:
-```env
-PORT=8080
-NODE_ENV=development
-PORTAL_PASSWORD=your-secure-password-here
-SESSION_SECRET=your-random-session-secret
-SESSION_TTL_SECONDS=43200
-SQLITE_PATH=./data/app.db
-
-# Pinecone Configuration
-PINECONE_API_KEY=your-pinecone-api-key
-PINECONE_INDEX=your-index-name
-PINECONE_HOST=https://your-index.svc.environment.pinecone.io
-PINECONE_EMBED_MODEL=text-embedding-3-large
-PINECONE_RERANK_MODEL=bge-reranker-v2-m3
-PINECONE_RERANK_DAILY_LIMIT=500
-PINECONE_NAMESPACE=qa
-CSV_BATCH_SIZE=25
-```
-
-4. **Start the development server**
-```bash
+# Set a unique PORTAL_PASSWORD and SESSION_SECRET.
+# Add Pinecone credentials and index settings only for a retrieval-enabled run.
 npm run dev
 ```
 
-This will start both frontend and backend servers:
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8080
+The frontend starts on `http://localhost:5173`; the API starts on `http://localhost:8080` by default. The SQLite file is created locally at the configured `SQLITE_PATH`.
 
-**Note:** The SQLite database will be created automatically on first run in `server/data/app.db`. Database files are excluded from git via `.gitignore` to keep your data private.
+> Do not commit `server/.env`, API keys, session secrets, exported Q&A containing real support data, or shared demo credentials.
 
-### First Steps
+## API surface
 
-1. Open http://localhost:5173 in your browser
-2. Login with the password from `PORTAL_PASSWORD` in your `.env` file
-3. Add your first Q&A pair or import an Excel file
-4. Start searching!
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/auth/login`, `POST /api/auth/logout` | Session lifecycle |
+| `GET/POST/PUT/DELETE /api/qa` | Manage Q&A records |
+| `POST /api/qa/resync` | Rebuild vector synchronization for Q&A records |
+| `GET /api/search?query=...` | Retrieve and optionally rerank Q&A candidates |
+| `GET /api/metrics`, `GET/PUT /api/settings` | Inspect and configure the prototype |
 
-## 📖 Usage
-
-### Adding Q&A Pairs
-
-**Manual Entry:**
-- Navigate to "Q&A Management"
-- Click "Add New Q&A"
-- Enter question and answer
-- Save (automatically synced to Pinecone)
-
-**Bulk Import:**
-- Use the Excel import feature
-- Upload an XLSX file with the following column headers: `question`, `answer`, `language` (optional)
-- Supports batch processing with configurable chunk size
-- Example structure:
-  | question | answer | language |
-  |----------|--------|----------|
-  | What is AI? | Artificial Intelligence... | en |
-  | Что такое ИИ? | Искусственный интеллект... | ru |
-
-### Searching
-
-- Enter your query in the search box
-- Results are automatically:
-  1. Embedded using query-optimized embeddings
-  2. Retrieved via vector similarity search
-  3. Reranked by semantic relevance
-- Top result displayed prominently with confidence indicators
-
-### Settings
-
-- Configure embedding and rerank models (read-only, set via environment)
-- Toggle reranker on/off
-- View system metrics
-
-## 🧪 Development
-
-### Project Structure
-
-```
-assist-craft-qna/
-├── frontend/          # React + Vite application
-│   ├── src/
-│   │   ├── components/  # Reusable UI components
-│   │   ├── pages/       # Route pages
-│   │   ├── hooks/       # Custom React hooks
-│   │   └── lib/         # Utilities and API client
-│   └── package.json
-├── server/            # Express + TypeScript backend
-│   ├── src/
-│   │   ├── routes/      # API route handlers
-│   │   ├── services/    # Business logic
-│   │   ├── middleware/  # Express middleware
-│   │   └── lib/         # Utilities and config
-│   └── package.json
-└── package.json       # Root workspace config
-```
-
-### Available Scripts
+## Development
 
 ```bash
-# Start both frontend and backend
+# Start both applications
 npm run dev
 
-# Start only backend
-npm run dev:server
-
-# Start only frontend
-npm run dev:frontend
-
-# Build for production
+# Build each workspace
 npm run build --workspace frontend
 npm run build --workspace server
+
+# Lint the frontend
+npm run lint --workspace frontend
 ```
 
-### API Endpoints
+The repository currently has no automated test suite. A successful deployment workflow builds and deploys containers; it is not an application-quality or retrieval-evaluation result.
 
-- `POST /api/auth/login` - Authenticate user
-- `POST /api/auth/logout` - End session
-- `GET /api/qa` - List Q&A pairs (paginated)
-- `POST /api/qa` - Create new Q&A pair
-- `PUT /api/qa/:id` - Update Q&A pair
-- `DELETE /api/qa/:id` - Delete Q&A pair
-- `POST /api/qa/import` - Bulk import from Excel (XLSX)
-- `GET /api/search?query=...` - Semantic search
-- `GET /api/metrics` - System statistics
-- `GET /api/settings` - Get settings
-- `PUT /api/settings` - Update settings
-
-
-## 📝 License
+## License
 
 ISC
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-**Built with ❤️ using open-source technologies**
-.
