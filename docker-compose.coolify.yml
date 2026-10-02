@@ -1,0 +1,78 @@
+# Production migration: build from Git in Coolify, without host ports.
+# Runtime secrets are injected by Coolify's resource-scoped env_file.
+services:
+  assist-craft-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks: [coolify]
+    expose: ["80"]
+    environment:
+      PINECONE_API_KEY: ""
+      PORTAL_PASSWORD: ""
+      SESSION_SECRET: ""
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.assistcraft-web-http.rule=Host(`qa.larin.work`)
+      - traefik.http.routers.assistcraft-web-http.entrypoints=http
+      - traefik.http.routers.assistcraft-web-http.service=assistcraft-web
+      - traefik.http.routers.assistcraft-web-http.middlewares=redirect-to-https
+      - traefik.http.routers.assistcraft-web-https.rule=Host(`qa.larin.work`)
+      - traefik.http.routers.assistcraft-web-https.entrypoints=https
+      - traefik.http.routers.assistcraft-web-https.service=assistcraft-web
+      - traefik.http.routers.assistcraft-web-https.tls=true
+      - traefik.http.routers.assistcraft-web-https.tls.certresolver=letsencrypt
+      - traefik.http.services.assistcraft-web.loadbalancer.server.port=80
+
+  assist-craft-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks: [coolify]
+    expose: ["8080"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      SQLITE_PATH: /data/app.db
+    volumes:
+      - assist-craft-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.assistcraft-api-http.rule=Host(`qa.larin.work`) && (PathPrefix(`/api`) || Path(`/healthz`))
+      - traefik.http.routers.assistcraft-api-http.entrypoints=http
+      - traefik.http.routers.assistcraft-api-http.priority=100
+      - traefik.http.routers.assistcraft-api-http.service=assistcraft-api
+      - traefik.http.routers.assistcraft-api-http.middlewares=redirect-to-https
+      - traefik.http.routers.assistcraft-api-https.rule=Host(`qa.larin.work`) && (PathPrefix(`/api`) || Path(`/healthz`))
+      - traefik.http.routers.assistcraft-api-https.entrypoints=https
+      - traefik.http.routers.assistcraft-api-https.priority=100
+      - traefik.http.routers.assistcraft-api-https.service=assistcraft-api
+      - traefik.http.routers.assistcraft-api-https.tls=true
+      - traefik.http.routers.assistcraft-api-https.tls.certresolver=letsencrypt
+      - traefik.http.services.assistcraft-api.loadbalancer.server.port=8080
+
+networks:
+  coolify:
+    external: true
+
+volumes:
+  assist-craft-data:
