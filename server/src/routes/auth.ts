@@ -8,7 +8,6 @@ const router = Router();
 router.post("/login", (req, res) => {
   const { password } = req.body as { password?: string };
   console.log('=== DEBUG /login ===');
-  console.log('Req body:', req.body);
   console.log('Env PORTAL_PASSWORD:', env.PORTAL_PASSWORD ? '[set, length ' + env.PORTAL_PASSWORD.length + ']' : 'EMPTY!');
   if (!password) {
     console.log('Missing password');
