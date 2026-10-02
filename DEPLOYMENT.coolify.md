@@ -32,4 +32,4 @@ Copy the existing non-secret cookie, session TTL, Pinecone model/index/host/name
 
 TLS issuance uses the existing Coolify proxy and HTTP challenge. Before DNS points to the new host, its certificate may not yet be issued: an insecure direct-IP HTTPS probe can test routing, **not** certificate acceptance. Final TLS verification is mandatory after authorized cutover.
 
-Any native auto-deploy claim requires a real Git push, matching webhook-triggered deployment and running revision; an enabled flag is insufficient.
+Any native auto-deploy claim requires a real Git push, matching webhook-triggered deployment and running revision; an enabled flag is insufficient. The migrated resource uses the installed Coolify GitHub App, repository `laser54/assist-craft-qna`, branch `main`. Each authorized publication to `main` is therefore a production deployment trigger; do not publish changes without the production approval gate.
