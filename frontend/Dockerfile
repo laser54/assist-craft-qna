@@ -9,9 +9,9 @@ RUN apk add --no-cache libc6-compat python3 make g++
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
-# Используем npm ci с fallback на npm install если lockfile не синхронизирован
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+# Install dependencies from the synced lockfile
+# Browser-only frontend: skip the optional CUDA runtime download (onnxruntime-node)
+RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
